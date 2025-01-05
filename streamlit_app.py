@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import os
 import sys
+import gc
 
 from data.fetcher import DataFetcher
 from data.indicators import TechnicalIndicators
@@ -13,9 +14,27 @@ from models.random_forest import RandomForestModel
 from models.neural_network import NeuralNetworkModel
 from backtesting.backtester import Backtester
 
-st.set_page_config(page_title='AI-Powered Forex Trading Agent', layout='wide')
+# Configure Streamlit for better performance
+st.set_page_config(
+    page_title='AI-Powered Forex Trading Agent',
+    layout='wide',
+    initial_sidebar_state='collapsed'
+)
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+# Initialize session state
+if 'data_fetcher' not in st.session_state:
+    st.session_state.data_fetcher = DataFetcher()
+if 'indicators' not in st.session_state:
+    st.session_state.indicators = TechnicalIndicators()
+if 'models' not in st.session_state:
+    st.session_state.models = {
+        'random_forest': RandomForestModel(),
+        'neural_network': NeuralNetworkModel()
+    }
+if 'backtester' not in st.session_state:
+    st.session_state.backtester = Backtester()
+
+@st.cache_data(ttl=300, max_entries=10)
 def plot_price_and_signals(data, signals=None):
     """Create price chart with signals"""
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
@@ -63,7 +82,7 @@ def plot_price_and_signals(data, signals=None):
     
     return fig
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+@st.cache_data(ttl=300, max_entries=10)
 def plot_equity_curve(equity_curve):
     """Plot equity curve from backtest results"""
     fig = go.Figure()
@@ -84,28 +103,41 @@ def plot_equity_curve(equity_curve):
     
     return fig
 
+def clear_caches():
+    """Clear all caches and force garbage collection"""
+    st.cache_data.clear()
+    for model in st.session_state.models.values():
+        model.clear_cache()
+    st.session_state.data_fetcher.clear_cache()
+    st.session_state.indicators.clear_cache()
+    st.session_state.backtester.clear_cache()
+    gc.collect()
+
 def main():
     # Title and logo
-    col1, col2 = st.columns([1, 5])
+    col1, col2, col3 = st.columns([1, 4, 1])
     with col1:
         st.image("https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Robot/3D/robot_3d.png", width=100)
     with col2:
         st.title('AI-Powered Forex Trading Agent')
+    with col3:
+        if st.button('Clear Cache'):
+            clear_caches()
+            st.success('Caches cleared!')
     
-    # Initialize components
+    # Sidebar controls
+    with st.sidebar:
+        st.header('Settings')
+        days = st.slider('Data Range (Days)', min_value=30, max_value=180, value=60)
+        chunk_size = st.slider('Processing Chunk Size', min_value=100, max_value=5000, value=1000, step=100)
+        st.session_state.data_fetcher._chunk_size = chunk_size
+        st.session_state.indicators._chunk_size = chunk_size
+    
     try:
-        data_fetcher = DataFetcher()
-        indicators = TechnicalIndicators()
-        models = {
-            'random_forest': RandomForestModel(),
-            'neural_network': NeuralNetworkModel()
-        }
-        backtester = Backtester()
-        
-        # Get initial data
-        days = st.sidebar.slider('Data Range (Days)', min_value=30, max_value=180, value=60)
-        data = data_fetcher.fetch_data(days=days)
-        data = indicators.add_all_indicators(data)
+        # Get initial data with progress bar
+        with st.spinner('Fetching market data...'):
+            data = st.session_state.data_fetcher.fetch_data(days=days)
+            data = st.session_state.indicators.add_all_indicators(data)
         
         # Display current price and change
         col1, col2, col3 = st.columns(3)
@@ -123,11 +155,11 @@ def main():
         st.subheader("Model Training")
         col1, col2 = st.columns(2)
         with col1:
-            selected_model = st.selectbox('Select Model', list(models.keys()))
+            selected_model = st.selectbox('Select Model', list(st.session_state.models.keys()))
         with col2:
             if st.button('Train Model'):
                 with st.spinner('Training model...'):
-                    model = models[selected_model]
+                    model = st.session_state.models[selected_model]
                     metrics = model.train(data)
                     st.success(f"Training complete! Validation accuracy: {metrics['validation_accuracy']:.2%}")
         
@@ -137,7 +169,7 @@ def main():
         with col1:
             if st.button('Get Signal'):
                 with st.spinner('Analyzing market...'):
-                    model = models[selected_model]
+                    model = st.session_state.models[selected_model]
                     signal = model.predict(data.iloc[-1])
                     confidence = model.get_prediction_confidence(data.iloc[-1])
                     signal_type = 'BUY' if signal > 0 else 'SELL' if signal < 0 else 'HOLD'
@@ -147,7 +179,7 @@ def main():
                 with st.spinner('Getting ensemble prediction...'):
                     signals = []
                     confidences = []
-                    for model in models.values():
+                    for model in st.session_state.models.values():
                         signal = model.predict(data.iloc[-1])
                         confidence = model.get_prediction_confidence(data.iloc[-1])
                         signals.append(signal)
@@ -162,8 +194,8 @@ def main():
         st.subheader("Backtesting")
         if st.button('Run Backtest'):
             with st.spinner('Running backtest...'):
-                model = models[selected_model]
-                results = backtester.run(data, model)
+                model = st.session_state.models[selected_model]
+                results = st.session_state.backtester.run(data, model)
                 
                 # Display metrics
                 col1, col2, col3 = st.columns(3)
@@ -192,12 +224,13 @@ def main():
             "Data Fetcher": "Connected",
             "Technical Indicators": "Ready",
             "Trading Engine": "Active",
-            "Models": list(models.keys()),
+            "Models": list(st.session_state.models.keys()),
+            "Memory Usage": f"{gc.get_count()} objects tracked",
             "Current Directory": os.getcwd()
         })
         
     except Exception as e:
-        st.error(f"Error initializing components: {str(e)}")
+        st.error(f"Error: {str(e)}")
         st.code(f"""
         Error Details:
         {type(e).__name__}: {str(e)}
