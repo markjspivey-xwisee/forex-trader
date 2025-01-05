@@ -33,6 +33,11 @@ if 'models' not in st.session_state:
     }
 if 'backtester' not in st.session_state:
     st.session_state.backtester = Backtester()
+if 'models_trained' not in st.session_state:
+    st.session_state.models_trained = {
+        'random_forest': False,
+        'neural_network': False
+    }
 
 @st.cache_data(ttl=300, max_entries=10)
 def plot_price_and_signals(data, signals=None):
@@ -120,9 +125,24 @@ def clear_caches():
         st.session_state.data_fetcher.clear_cache()
         st.session_state.indicators.clear_cache()
         st.session_state.backtester.clear_cache()
+        st.session_state.models_trained = {
+            'random_forest': False,
+            'neural_network': False
+        }
         gc.collect()
     except Exception as e:
         st.error(f"Error clearing caches: {str(e)}")
+
+def train_all_models(data):
+    """Train all models with the given data"""
+    try:
+        for model_name, model in st.session_state.models.items():
+            with st.spinner(f'Training {model_name}...'):
+                metrics = model.train(data)
+                st.session_state.models_trained[model_name] = True
+                st.success(f"{model_name} training complete! Validation accuracy: {metrics['validation_accuracy']:.2%}")
+    except Exception as e:
+        st.error(f"Error training models: {str(e)}")
 
 def main():
     try:
@@ -183,63 +203,79 @@ def main():
         with col1:
             selected_model = st.selectbox('Select Model', list(st.session_state.models.keys()))
         with col2:
-            if st.button('Train Model'):
+            if st.button('Train Selected Model'):
                 with st.spinner('Training model...'):
                     model = st.session_state.models[selected_model]
                     metrics = model.train(data)
+                    st.session_state.models_trained[selected_model] = True
                     st.success(f"Training complete! Validation accuracy: {metrics['validation_accuracy']:.2%}")
+        
+        # Option to train all models
+        if st.button('Train All Models'):
+            train_all_models(data)
         
         # Trading signals
         st.subheader("Trading Signals")
         col1, col2 = st.columns(2)
         with col1:
             if st.button('Get Signal'):
-                with st.spinner('Analyzing market...'):
-                    model = st.session_state.models[selected_model]
-                    signal = model.predict(data.iloc[-1])
-                    confidence = model.get_prediction_confidence(data.iloc[-1])
-                    signal_type = 'BUY' if signal > 0 else 'SELL' if signal < 0 else 'HOLD'
-                    st.info(f"Signal: {signal_type} (Confidence: {confidence:.2%})")
-        with col2:
-            if st.button('Get Ensemble Signal'):
-                with st.spinner('Getting ensemble prediction...'):
-                    signals = []
-                    confidences = []
-                    for model in st.session_state.models.values():
+                if not st.session_state.models_trained[selected_model]:
+                    st.warning(f"Please train the {selected_model} first!")
+                else:
+                    with st.spinner('Analyzing market...'):
+                        model = st.session_state.models[selected_model]
                         signal = model.predict(data.iloc[-1])
                         confidence = model.get_prediction_confidence(data.iloc[-1])
-                        signals.append(signal)
-                        confidences.append(confidence)
-                    
-                    weighted_signal = sum(s * c for s, c in zip(signals, confidences)) / sum(confidences)
-                    avg_confidence = sum(confidences) / len(confidences)
-                    signal_type = 'BUY' if weighted_signal > 0.5 else 'SELL' if weighted_signal < -0.5 else 'HOLD'
-                    st.info(f"Ensemble Signal: {signal_type} (Confidence: {avg_confidence:.2%})")
+                        signal_type = 'BUY' if signal > 0 else 'SELL' if signal < 0 else 'HOLD'
+                        st.info(f"Signal: {signal_type} (Confidence: {confidence:.2%})")
+        with col2:
+            if st.button('Get Ensemble Signal'):
+                # Check if all models are trained
+                untrained_models = [name for name, trained in st.session_state.models_trained.items() if not trained]
+                if untrained_models:
+                    st.warning(f"Please train the following models first: {', '.join(untrained_models)}")
+                else:
+                    with st.spinner('Getting ensemble prediction...'):
+                        signals = []
+                        confidences = []
+                        for model in st.session_state.models.values():
+                            signal = model.predict(data.iloc[-1])
+                            confidence = model.get_prediction_confidence(data.iloc[-1])
+                            signals.append(signal)
+                            confidences.append(confidence)
+                        
+                        weighted_signal = sum(s * c for s, c in zip(signals, confidences)) / sum(confidences)
+                        avg_confidence = sum(confidences) / len(confidences)
+                        signal_type = 'BUY' if weighted_signal > 0.5 else 'SELL' if weighted_signal < -0.5 else 'HOLD'
+                        st.info(f"Ensemble Signal: {signal_type} (Confidence: {avg_confidence:.2%})")
         
         # Backtesting
         st.subheader("Backtesting")
         if st.button('Run Backtest'):
-            with st.spinner('Running backtest...'):
-                model = st.session_state.models[selected_model]
-                results = st.session_state.backtester.run(data, model)
-                
-                # Display metrics
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric('Total Return', f"{results['total_return']:.2%}")
-                    st.metric('Win Rate', f"{results['win_rate']:.2%}")
-                with col2:
-                    st.metric('Total Trades', results['total_trades'])
-                    st.metric('Average Return', f"{results['avg_return']:.2%}")
-                with col3:
-                    st.metric('Max Drawdown', f"{results['max_drawdown']:.2%}")
-                    st.metric('Sharpe Ratio', f"{results['sharpe_ratio']:.2f}")
-                
-                # Plot equity curve
-                if results['equity_curve']:
-                    fig = plot_equity_curve(results['equity_curve'])
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+            if not st.session_state.models_trained[selected_model]:
+                st.warning(f"Please train the {selected_model} first!")
+            else:
+                with st.spinner('Running backtest...'):
+                    model = st.session_state.models[selected_model]
+                    results = st.session_state.backtester.run(data, model)
+                    
+                    # Display metrics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric('Total Return', f"{results['total_return']:.2%}")
+                        st.metric('Win Rate', f"{results['win_rate']:.2%}")
+                    with col2:
+                        st.metric('Total Trades', results['total_trades'])
+                        st.metric('Average Return', f"{results['avg_return']:.2%}")
+                    with col3:
+                        st.metric('Max Drawdown', f"{results['max_drawdown']:.2%}")
+                        st.metric('Sharpe Ratio', f"{results['sharpe_ratio']:.2f}")
+                    
+                    # Plot equity curve
+                    if results['equity_curve']:
+                        fig = plot_equity_curve(results['equity_curve'])
+                        if fig:
+                            st.plotly_chart(fig, use_container_width=True)
         
         # Price chart
         st.subheader("Price Chart")
@@ -253,7 +289,10 @@ def main():
             "Data Fetcher": "Connected",
             "Technical Indicators": "Ready",
             "Trading Engine": "Active",
-            "Models": list(st.session_state.models.keys()),
+            "Models": {
+                name: "Trained" if trained else "Not Trained"
+                for name, trained in st.session_state.models_trained.items()
+            },
             "Memory Usage": f"{gc.get_count()} objects tracked",
             "Current Directory": os.getcwd(),
             "Data Shape": data.shape if data is not None else None,
