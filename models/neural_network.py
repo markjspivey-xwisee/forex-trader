@@ -55,7 +55,7 @@ class NeuralNetworkModel(BaseModel):
             y_train = y_train.astype(np.float32)
             
             # Train model
-            self.model.fit(
+            history = self.model.fit(
                 X_train_scaled,
                 y_train,
                 epochs=50,
@@ -77,6 +77,30 @@ class NeuralNetworkModel(BaseModel):
         except Exception as e:
             st.error(f"Error training neural network: {str(e)}")
             raise
+    
+    def score(self, X, y):
+        """Calculate accuracy score for the model"""
+        try:
+            if not hasattr(self.scaler, 'mean_'):
+                return 0.0
+            
+            # Scale features
+            X_scaled = self.scaler.transform(X)
+            
+            # Get predictions
+            predictions = self.model.predict(X_scaled, verbose=0)
+            
+            # Convert predictions to binary signals
+            predicted_signals = np.where(predictions > 0.5, 1, np.where(predictions < -0.5, -1, 0))
+            
+            # Calculate accuracy
+            accuracy = np.mean(predicted_signals.flatten() == y)
+            
+            return float(accuracy)
+            
+        except Exception as e:
+            st.error(f"Error calculating score: {str(e)}")
+            return 0.0
     
     def predict(self, data_point):
         """Make prediction for a single data point"""
