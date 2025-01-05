@@ -19,9 +19,34 @@ class DataFetcher:
         self._cache_duration = timedelta(minutes=5)  # Cache data for 5 minutes
         self._chunk_size = 1000  # Number of rows to process at a time
     
+    @staticmethod
     @st.cache_data(ttl=300, max_entries=10)  # Cache for 5 minutes, limit entries
+    def _fetch_data_cached(days, chunk_size):
+        """Static cached method for fetching data"""
+        dates = pd.date_range(end=datetime.now(), periods=days*24, freq='h')
+        data = pd.DataFrame({
+            'open': np.random.normal(1.1, 0.02, len(dates)),
+            'high': np.random.normal(1.1, 0.02, len(dates)),
+            'low': np.random.normal(1.1, 0.02, len(dates)),
+            'close': np.random.normal(1.1, 0.02, len(dates)),
+            'volume': np.random.randint(1000, 5000, len(dates))
+        }, index=dates)
+        
+        # Ensure high/low are actually highest/lowest
+        data['high'] = data[['open', 'high', 'low', 'close']].max(axis=1)
+        data['low'] = data[['open', 'high', 'low', 'close']].min(axis=1)
+        
+        # Process in chunks
+        chunks = []
+        for i in range(0, len(data), chunk_size):
+            chunk = data.iloc[i:i + chunk_size].copy()
+            chunks.append(chunk)
+            gc.collect()  # Force garbage collection
+        
+        return pd.concat(chunks)
+    
     def fetch_data(self, days=30):
-        """Fetch historical forex data with caching and memory management"""
+        """Fetch historical forex data with caching"""
         cache_key = f"{self.instrument}_{days}"
         current_time = datetime.now()
         
@@ -45,15 +70,12 @@ class DataFetcher:
                 # self.api.request(r)
                 # data = self._process_response(r.response)
                 # For demo, return simulated data
-                data = self._generate_demo_data(days)
+                data = self._fetch_data_cached(days, self._chunk_size)
             else:
                 # Generate demo data if no API key
-                data = self._generate_demo_data(days)
+                data = self._fetch_data_cached(days, self._chunk_size)
             
-            # Process data in chunks to manage memory
-            data = self._process_data_in_chunks(data)
-            
-            # Update cache with memory management
+            # Update cache
             self._update_cache(cache_key, data, current_time)
             
             return data
@@ -65,34 +87,7 @@ class DataFetcher:
                 st.warning("Using cached data due to error")
                 return self._cache[cache_key][0]
             # Generate demo data as fallback
-            return self._generate_demo_data(days)
-    
-    def _generate_demo_data(self, days):
-        """Generate simulated forex data for demo"""
-        dates = pd.date_range(end=datetime.now(), periods=days*24, freq='h')
-        data = pd.DataFrame({
-            'open': np.random.normal(1.1, 0.02, len(dates)),
-            'high': np.random.normal(1.1, 0.02, len(dates)),
-            'low': np.random.normal(1.1, 0.02, len(dates)),
-            'close': np.random.normal(1.1, 0.02, len(dates)),
-            'volume': np.random.randint(1000, 5000, len(dates))
-        }, index=dates)
-        
-        # Ensure high/low are actually highest/lowest
-        data['high'] = data[['open', 'high', 'low', 'close']].max(axis=1)
-        data['low'] = data[['open', 'high', 'low', 'close']].min(axis=1)
-        
-        return data
-    
-    def _process_data_in_chunks(self, data):
-        """Process data in chunks to manage memory"""
-        chunks = []
-        for i in range(0, len(data), self._chunk_size):
-            chunk = data.iloc[i:i + self._chunk_size].copy()
-            chunks.append(chunk)
-            gc.collect()  # Force garbage collection
-        
-        return pd.concat(chunks)
+            return self._fetch_data_cached(days, self._chunk_size)
     
     def _update_cache(self, key, data, timestamp):
         """Update cache with memory management"""

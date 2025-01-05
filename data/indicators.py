@@ -9,7 +9,45 @@ class TechnicalIndicators:
         self._cache = {}
         self._chunk_size = 1000  # Number of rows to process at a time
     
+    @staticmethod
     @st.cache_data(ttl=300, max_entries=10)  # Cache for 5 minutes, limit entries
+    def _process_chunk_cached(chunk_data, chunk_size):
+        """Process a single chunk of data with caching"""
+        df = chunk_data.copy()
+        
+        # Moving averages
+        for period in [20, 50]:
+            df[f'SMA_{period}'] = TechnicalIndicators._calculate_sma(df['close'].values, period)
+        
+        # Bollinger Bands
+        df['BB_middle'] = TechnicalIndicators._calculate_sma(df['close'].values, 20)
+        std = TechnicalIndicators._calculate_std(df['close'].values, 20)
+        df['BB_upper'] = df['BB_middle'] + 2 * std
+        df['BB_lower'] = df['BB_middle'] - 2 * std
+        
+        # MACD
+        df['MACD'], df['Signal_Line'] = TechnicalIndicators._calculate_macd(df['close'].values)
+        
+        # RSI
+        df['RSI'] = TechnicalIndicators._calculate_rsi(df['close'].values)
+        
+        # ATR
+        df['ATR'] = TechnicalIndicators._calculate_atr(
+            df['high'].values,
+            df['low'].values,
+            df['close'].values
+        )
+        
+        # Stochastic Oscillator
+        df['Stoch_K'], df['Stoch_D'] = TechnicalIndicators._calculate_stochastic(
+            df['high'].values,
+            df['low'].values,
+            df['close'].values
+        )
+        
+        gc.collect()  # Force garbage collection
+        return df
+    
     def add_all_indicators(self, data):
         """Add all technical indicators to the dataset with memory management"""
         try:
@@ -17,8 +55,8 @@ class TechnicalIndicators:
             chunks = []
             for i in range(0, len(data), self._chunk_size):
                 chunk = data.iloc[i:i + self._chunk_size].copy()
-                chunk = self._process_chunk(chunk)
-                chunks.append(chunk)
+                processed_chunk = self._process_chunk_cached(chunk, self._chunk_size)
+                chunks.append(processed_chunk)
                 gc.collect()  # Force garbage collection
             
             # Combine chunks
@@ -33,121 +71,70 @@ class TechnicalIndicators:
             st.error(f"Error calculating indicators: {str(e)}")
             return data
     
-    def _process_chunk(self, df):
-        """Process a single chunk of data"""
-        # Moving averages
-        for period in [20, 50]:
-            df[f'SMA_{period}'] = self._calculate_sma(df['close'], period)
-        
-        # Bollinger Bands
-        df['BB_middle'] = self._calculate_sma(df['close'], 20)
-        std = self._calculate_std(df['close'], 20)
-        df['BB_upper'] = df['BB_middle'] + 2 * std
-        df['BB_lower'] = df['BB_middle'] - 2 * std
-        
-        # MACD
-        df['MACD'], df['Signal_Line'] = self._calculate_macd(df['close'])
-        
-        # RSI
-        df['RSI'] = self._calculate_rsi(df['close'])
-        
-        # ATR
-        df['ATR'] = self._calculate_atr(df)
-        
-        # Stochastic Oscillator
-        df['Stoch_K'], df['Stoch_D'] = self._calculate_stochastic(df)
-        
-        return df
-    
+    @staticmethod
     @lru_cache(maxsize=128)
-    def _calculate_sma(self, series, window):
+    def _calculate_sma(values, window):
         """Calculate Simple Moving Average with caching"""
-        # Convert series to tuple for caching
-        values = tuple(series)
-        result = pd.Series(values).rolling(window=window).mean()
-        gc.collect()  # Force garbage collection
-        return result
+        series = pd.Series(values)
+        return series.rolling(window=window).mean().values
     
+    @staticmethod
     @lru_cache(maxsize=128)
-    def _calculate_std(self, series, window):
+    def _calculate_std(values, window):
         """Calculate Standard Deviation with caching"""
-        values = tuple(series)
-        result = pd.Series(values).rolling(window=window).std()
-        gc.collect()  # Force garbage collection
-        return result
+        series = pd.Series(values)
+        return series.rolling(window=window).std().values
     
+    @staticmethod
     @lru_cache(maxsize=128)
-    def _calculate_macd(self, series):
+    def _calculate_macd(values):
         """Calculate MACD with caching"""
-        values = tuple(series)
         series = pd.Series(values)
         exp1 = series.ewm(span=12, adjust=False).mean()
         exp2 = series.ewm(span=26, adjust=False).mean()
         macd = exp1 - exp2
         signal = macd.ewm(span=9, adjust=False).mean()
-        gc.collect()  # Force garbage collection
-        return macd, signal
+        return macd.values, signal.values
     
+    @staticmethod
     @lru_cache(maxsize=128)
-    def _calculate_rsi(self, series):
+    def _calculate_rsi(values):
         """Calculate RSI with caching"""
-        values = tuple(series)
         series = pd.Series(values)
         delta = series.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
-        result = 100 - (100 / (1 + rs))
-        gc.collect()  # Force garbage collection
-        return result
+        return (100 - (100 / (1 + rs))).values
     
+    @staticmethod
     @lru_cache(maxsize=128)
-    def _calculate_atr(self, df):
+    def _calculate_atr(high_values, low_values, close_values):
         """Calculate ATR with caching"""
-        high = tuple(df['high'])
-        low = tuple(df['low'])
-        close = tuple(df['close'])
+        high = pd.Series(high_values)
+        low = pd.Series(low_values)
+        close = pd.Series(close_values)
         
-        df_temp = pd.DataFrame({
-            'high': high,
-            'low': low,
-            'close': close
-        })
-        
-        high_low = df_temp['high'] - df_temp['low']
-        high_close = np.abs(df_temp['high'] - df_temp['close'].shift())
-        low_close = np.abs(df_temp['low'] - df_temp['close'].shift())
+        high_low = high - low
+        high_close = np.abs(high - close.shift())
+        low_close = np.abs(low - close.shift())
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = ranges.max(axis=1)
-        result = true_range.rolling(14).mean()
-        
-        del df_temp, ranges  # Explicitly delete temporary objects
-        gc.collect()  # Force garbage collection
-        
-        return result
+        return true_range.rolling(14).mean().values
     
+    @staticmethod
     @lru_cache(maxsize=128)
-    def _calculate_stochastic(self, df):
+    def _calculate_stochastic(high_values, low_values, close_values):
         """Calculate Stochastic Oscillator with caching"""
-        high = tuple(df['high'])
-        low = tuple(df['low'])
-        close = tuple(df['close'])
+        high = pd.Series(high_values)
+        low = pd.Series(low_values)
+        close = pd.Series(close_values)
         
-        df_temp = pd.DataFrame({
-            'high': high,
-            'low': low,
-            'close': close
-        })
-        
-        low_14 = df_temp['low'].rolling(window=14).min()
-        high_14 = df_temp['high'].rolling(window=14).max()
-        k = ((df_temp['close'] - low_14) / (high_14 - low_14)) * 100
+        low_14 = low.rolling(window=14).min()
+        high_14 = high.rolling(window=14).max()
+        k = ((close - low_14) / (high_14 - low_14)) * 100
         d = k.rolling(window=3).mean()
-        
-        del df_temp  # Explicitly delete temporary object
-        gc.collect()  # Force garbage collection
-        
-        return k, d
+        return k.values, d.values
     
     def clear_cache(self):
         """Clear all caches and force garbage collection"""
