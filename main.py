@@ -1,77 +1,111 @@
-import argparse
-from data_fetcher import OANDADataFetcher
-from strategy import MLStrategy
-from backtester import Backtester
-import json
 import os
-from datetime import datetime
+from data.fetcher import DataFetcher
+from data.indicators import TechnicalIndicators
+from models.random_forest import RandomForestModel
+from models.neural_network import NeuralNetworkModel
+from backtesting.backtester import Backtester
 
-def save_results(results, filename):
-    """Save backtest results to a JSON file"""
-    os.makedirs('results', exist_ok=True)
-    with open(f'results/{filename}', 'w') as f:
-        json.dump(results, f, indent=4, default=str)
-
-def main():
-    parser = argparse.ArgumentParser(description='Forex Trading Agent')
-    parser.add_argument('--mode', choices=['train', 'backtest', 'trade'], default='backtest',
-                      help='Mode of operation')
-    parser.add_argument('--days', type=int, default=90,
-                      help='Number of days of historical data to use')
-    parser.add_argument('--initial_balance', type=float, default=10000,
-                      help='Initial balance for backtesting')
-    parser.add_argument('--position_size', type=float, default=0.1,
-                      help='Position size as fraction of balance')
-    
-    args = parser.parse_args()
-    
-    # Initialize components
-    fetcher = OANDADataFetcher()
-    strategy = MLStrategy()
-    backtester = Backtester(
-        initial_balance=args.initial_balance,
-        position_size=args.position_size
-    )
-    
-    # Fetch and prepare data
-    print(f"Fetching {args.days} days of historical data...")
-    data = fetcher.fetch_historical_data(days=args.days)
-    data_with_features = fetcher.add_features(data)
-    
-    if args.mode in ['train', 'backtest']:
-        # Train the strategy
-        print("\nTraining strategy...")
-        metrics = strategy.train(data_with_features)
-        print("Training metrics:")
-        print(f"Training accuracy: {metrics['train_accuracy']:.2f}")
-        print(f"Validation accuracy: {metrics['validation_accuracy']:.2f}")
-    
-    if args.mode in ['backtest', 'trade']:
-        # Run backtest
-        print("\nRunning backtest...")
-        results = backtester.run(data_with_features, strategy)
+class ForexTrader:
+    def __init__(self, min_accuracy=0.55, lookback=12, confidence=0.6, risk_settings=None, advanced_settings=None):
+        self.min_accuracy = min_accuracy
+        self.lookback = lookback
+        self.confidence = confidence
+        self.risk_settings = risk_settings or {
+            'stop_loss': 0.02,
+            'take_profit': 0.04,
+            'max_position_size': 0.1,
+            'max_trades': 5
+        }
+        self.advanced_settings = advanced_settings or {
+            'use_gpu': False,
+            'enable_ensemble': True,
+            'feature_selection': 'All Features',
+            'optimization_method': 'Random Search'
+        }
         
-        # Save and display results
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        save_results(results, f'backtest_results_{timestamp}.json')
-        
-        print("\nBacktest Results:")
-        for key, value in results.items():
-            if isinstance(value, float):
-                print(f"{key}: {value:.2f}")
-            else:
-                print(f"{key}: {value}")
+        # Initialize components
+        self.data_fetcher = DataFetcher()
+        self.indicators = TechnicalIndicators()
+        self.models = {
+            'random_forest': RandomForestModel(),
+            'neural_network': NeuralNetworkModel()
+        }
+        self.backtester = Backtester(
+            initial_balance=10000,
+            position_size=self.risk_settings['max_position_size']
+        )
     
-    if args.mode == 'trade':
-        # Get latest data point and make prediction
-        latest_features = data_with_features[strategy.feature_columns].iloc[-1]
-        prediction = strategy.predict(latest_features)
+    def train_models(self, days=90):
+        """Train all models and return their metrics"""
+        data = self.data_fetcher.fetch_data(days=days)
+        data = self.indicators.add_all_indicators(data)
         
-        print("\nLatest Trading Signal:")
-        signal_map = {1: "BUY", -1: "SELL", 0: "HOLD"}
-        print(f"Signal: {signal_map[prediction]}")
-        print(f"Timestamp: {data_with_features.index[-1]}")
-        print(f"Current Price: {data_with_features['close'].iloc[-1]:.5f}")
+        results = {}
+        for name, model in self.models.items():
+            metrics = model.train(data)
+            if metrics['validation_accuracy'] >= self.min_accuracy:
+                results[name] = metrics
+        
+        return results
+    
+    def get_live_signal(self, model_name=None):
+        """Get trading signal from a specific model"""
+        data = self.data_fetcher.fetch_data(days=self.lookback)
+        data = self.indicators.add_all_indicators(data)
+        
+        if model_name not in self.models:
+            raise ValueError(f"Model {model_name} not found")
+        
+        model = self.models[model_name]
+        signal = model.predict(data.iloc[-1])
+        confidence = model.get_prediction_confidence(data.iloc[-1])
+        
+        return {
+            'signal_type': 'BUY' if signal > 0 else 'SELL' if signal < 0 else 'HOLD',
+            'confidence': confidence,
+            'current_price': data['close'].iloc[-1],
+            'timestamp': data.index[-1]
+        }
+    
+    def get_ensemble_signal(self):
+        """Get trading signal using ensemble of all models"""
+        signals = []
+        confidences = []
+        
+        data = self.data_fetcher.fetch_data(days=self.lookback)
+        data = self.indicators.add_all_indicators(data)
+        
+        for model in self.models.values():
+            signal = model.predict(data.iloc[-1])
+            confidence = model.get_prediction_confidence(data.iloc[-1])
+            
+            if confidence >= self.confidence:
+                signals.append(signal)
+                confidences.append(confidence)
+        
+        if not signals:
+            return {
+                'signal_type': 'HOLD',
+                'confidence': 0.0,
+                'current_price': data['close'].iloc[-1],
+                'timestamp': data.index[-1]
+            }
+        
+        # Weight signals by confidence
+        weighted_signal = sum(s * c for s, c in zip(signals, confidences)) / sum(confidences)
+        avg_confidence = sum(confidences) / len(confidences)
+        
+        return {
+            'signal_type': 'BUY' if weighted_signal > 0.5 else 'SELL' if weighted_signal < -0.5 else 'HOLD',
+            'confidence': avg_confidence,
+            'current_price': data['close'].iloc[-1],
+            'timestamp': data.index[-1]
+        }
 
 if __name__ == "__main__":
-    main()
+    trader = ForexTrader()
+    results = trader.train_models()
+    print("Training Results:", results)
+    
+    signal = trader.get_ensemble_signal()
+    print("Latest Signal:", signal)
