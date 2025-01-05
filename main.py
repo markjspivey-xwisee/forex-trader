@@ -101,11 +101,3 @@ class ForexTrader:
             'current_price': data['close'].iloc[-1],
             'timestamp': data.index[-1]
         }
-
-if __name__ == "__main__":
-    trader = ForexTrader()
-    results = trader.train_models()
-    print("Training Results:", results)
-    
-    signal = trader.get_ensemble_signal()
-    print("Latest Signal:", signal)

@@ -45,4 +45,5 @@ class TechnicalIndicators:
         df['Stoch_K'] = ((df['close'] - low_14) / (high_14 - low_14)) * 100
         df['Stoch_D'] = df['Stoch_K'].rolling(window=3).mean()
         
+        # Drop any NaN values that resulted from the calculations
         return df.dropna()
