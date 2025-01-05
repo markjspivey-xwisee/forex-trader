@@ -81,16 +81,33 @@ class Backtester:
             
             # Convert trades and equity curve to JSON-serializable format
             results = backtester._generate_results()
-            results['trades'] = [
-                {k: v.isoformat() if isinstance(v, pd.Timestamp) else float(v)
-                 for k, v in trade.items()}
-                for trade in results['trades']
-            ]
-            results['equity_curve'] = [
-                {k: v.isoformat() if isinstance(v, pd.Timestamp) else float(v)
-                 for k, v in point.items()}
-                for point in results['equity_curve']
-            ]
+            
+            # Convert trade records to JSON-serializable format
+            json_trades = []
+            for trade in results['trades']:
+                json_trade = {
+                    'type': trade['type'],  # Keep as string, don't convert to float
+                    'entry_time': trade['entry_time'].isoformat() if isinstance(trade['entry_time'], pd.Timestamp) else trade['entry_time'],
+                    'exit_time': trade['exit_time'].isoformat() if isinstance(trade['exit_time'], pd.Timestamp) else trade['exit_time'],
+                    'entry_price': float(trade['entry_price']),
+                    'exit_price': float(trade['exit_price']),
+                    'pnl': float(trade['pnl']),
+                    'return': float(trade['return'])
+                }
+                json_trades.append(json_trade)
+            
+            results['trades'] = json_trades
+            
+            # Convert equity curve to JSON-serializable format
+            json_equity = []
+            for point in results['equity_curve']:
+                json_point = {
+                    'timestamp': point['timestamp'].isoformat() if isinstance(point['timestamp'], pd.Timestamp) else point['timestamp'],
+                    'equity': float(point['equity'])
+                }
+                json_equity.append(json_point)
+            
+            results['equity_curve'] = json_equity
             
             return json.dumps(results)
             
@@ -146,7 +163,7 @@ class Backtester:
         position_size = (self.balance * self.position_size) / entry_price
         
         self.position = {
-            'type': 'long',
+            'type': 'long',  # Keep as string
             'entry_price': entry_price,
             'size': float(position_size),
             'entry_time': next_data.name
@@ -158,7 +175,7 @@ class Backtester:
         position_size = (self.balance * self.position_size) / entry_price
         
         self.position = {
-            'type': 'short',
+            'type': 'short',  # Keep as string
             'entry_price': entry_price,
             'size': float(position_size),
             'entry_time': next_data.name
@@ -179,7 +196,7 @@ class Backtester:
         
         # Record trade
         self.trades.append({
-            'type': self.position['type'],
+            'type': self.position['type'],  # Keep as string
             'entry_time': self.position['entry_time'],
             'exit_time': next_data.name,
             'entry_price': float(self.position['entry_price']),
