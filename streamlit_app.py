@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import sys
 import gc
+import time
 
 from data.fetcher import DataFetcher
 from data.indicators import TechnicalIndicators
@@ -37,6 +38,15 @@ if 'models_trained' not in st.session_state:
     st.session_state.models_trained = {
         'random_forest': False,
         'neural_network': False
+    }
+if 'live_trading' not in st.session_state:
+    st.session_state.live_trading = {
+        'active': False,
+        'model': None,
+        'position': None,
+        'trades': [],
+        'balance': 10000.0,
+        'start_time': None
     }
 
 @st.cache_data(ttl=300, max_entries=10)
@@ -144,6 +154,63 @@ def train_all_models(data):
     except Exception as e:
         st.error(f"Error training models: {str(e)}")
 
+def execute_trade(signal, confidence, current_price):
+    """Execute a trade based on the signal"""
+    try:
+        position_size = 0.1  # 10% of balance per trade
+        
+        # Check if we have an open position
+        if st.session_state.live_trading['position'] is not None:
+            position = st.session_state.live_trading['position']
+            
+            # Check if we should close the position
+            if (position['type'] == 'long' and signal < 0) or \
+               (position['type'] == 'short' and signal > 0):
+                # Calculate profit/loss
+                if position['type'] == 'long':
+                    pnl = (current_price - position['entry_price']) * position['size']
+                else:  # short
+                    pnl = (position['entry_price'] - current_price) * position['size']
+                
+                # Update balance
+                st.session_state.live_trading['balance'] += float(pnl)
+                
+                # Record trade
+                trade = {
+                    'type': position['type'],
+                    'entry_time': position['entry_time'],
+                    'exit_time': datetime.now(),
+                    'entry_price': position['entry_price'],
+                    'exit_price': current_price,
+                    'pnl': pnl,
+                    'return': pnl / (position['entry_price'] * position['size'])
+                }
+                st.session_state.live_trading['trades'].append(trade)
+                
+                # Close position
+                st.session_state.live_trading['position'] = None
+                
+                st.success(f"Closed {position['type']} position with P&L: ${pnl:.2f}")
+        
+        # Check if we should open a new position
+        elif signal != 0 and confidence >= 0.6:  # Only trade with sufficient confidence
+            # Calculate position size
+            size = (st.session_state.live_trading['balance'] * position_size) / current_price
+            
+            # Open position
+            position = {
+                'type': 'long' if signal > 0 else 'short',
+                'entry_price': current_price,
+                'size': float(size),
+                'entry_time': datetime.now()
+            }
+            st.session_state.live_trading['position'] = position
+            
+            st.success(f"Opened {position['type']} position at ${current_price:.5f}")
+    
+    except Exception as e:
+        st.error(f"Error executing trade: {str(e)}")
+
 def main():
     try:
         # Title and logo
@@ -213,6 +280,64 @@ def main():
         # Option to train all models
         if st.button('Train All Models'):
             train_all_models(data)
+        
+        # Live Trading Section
+        st.subheader("Live Trading")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            trading_model = st.selectbox(
+                'Select Trading Model',
+                list(st.session_state.models.keys()),
+                key='trading_model'
+            )
+        
+        with col2:
+            if not st.session_state.live_trading['active']:
+                if st.button('Start Live Trading'):
+                    if not st.session_state.models_trained[trading_model]:
+                        st.warning(f"Please train the {trading_model} model first!")
+                    else:
+                        st.session_state.live_trading['active'] = True
+                        st.session_state.live_trading['model'] = trading_model
+                        st.session_state.live_trading['start_time'] = datetime.now()
+                        st.success(f"Started live trading with {trading_model} model")
+            else:
+                if st.button('Stop Live Trading'):
+                    st.session_state.live_trading['active'] = False
+                    st.session_state.live_trading['model'] = None
+                    st.warning("Live trading stopped")
+        
+        with col3:
+            st.metric(
+                'Trading Balance',
+                f"${st.session_state.live_trading['balance']:.2f}",
+                f"{((st.session_state.live_trading['balance'] - 10000) / 10000):.2%}"
+            )
+        
+        # Live trading status
+        if st.session_state.live_trading['active']:
+            st.info(f"""
+            Live Trading Status:
+            - Model: {st.session_state.live_trading['model']}
+            - Running since: {st.session_state.live_trading['start_time'].strftime('%Y-%m-%d %H:%M:%S')}
+            - Position: {st.session_state.live_trading['position']['type'] if st.session_state.live_trading['position'] else 'None'}
+            - Total Trades: {len(st.session_state.live_trading['trades'])}
+            """)
+            
+            # Get latest signal
+            model = st.session_state.models[st.session_state.live_trading['model']]
+            signal = model.predict(data.iloc[-1])
+            confidence = model.get_prediction_confidence(data.iloc[-1])
+            
+            # Execute trade based on signal
+            execute_trade(signal, confidence, current_price)
+            
+            # Display trade history
+            if st.session_state.live_trading['trades']:
+                st.write("Trade History:")
+                trades_df = pd.DataFrame(st.session_state.live_trading['trades'])
+                st.dataframe(trades_df)
         
         # Trading signals
         st.subheader("Trading Signals")
@@ -288,7 +413,7 @@ def main():
         st.json({
             "Data Fetcher": "Connected",
             "Technical Indicators": "Ready",
-            "Trading Engine": "Active",
+            "Trading Engine": "Active" if st.session_state.live_trading['active'] else "Inactive",
             "Models": {
                 name: "Trained" if trained else "Not Trained"
                 for name, trained in st.session_state.models_trained.items()
