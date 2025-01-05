@@ -5,11 +5,12 @@ import streamlit as st
 import hashlib
 import gc
 import json
+from io import StringIO
 
 class Backtester:
     def __init__(self, initial_balance=10000, position_size=0.1):
-        self.initial_balance = initial_balance
-        self.position_size = position_size
+        self.initial_balance = float(initial_balance)
+        self.position_size = float(position_size)
         self._cache = {}
         self.reset()
     
@@ -24,7 +25,7 @@ class Backtester:
     def _generate_cache_key(data, strategy_name, initial_balance, position_size):
         """Generate a unique cache key for the backtest"""
         # Convert data to JSON string representation
-        data_str = data.to_json()
+        data_str = data.to_json(date_format='iso')
         # Combine with parameters
         key_str = f"{data_str}_{strategy_name}_{initial_balance}_{position_size}"
         # Create hash
@@ -34,8 +35,8 @@ class Backtester:
     @st.cache_data(ttl=300, max_entries=10)  # Cache for 5 minutes, limit entries
     def _run_backtest_cached(data_json, strategy_name, initial_balance, position_size):
         """Run backtest with caching"""
-        # Convert JSON back to DataFrame
-        data = pd.read_json(data_json)
+        # Convert JSON to DataFrame using StringIO
+        data = pd.read_json(StringIO(data_json))
         backtester = Backtester(initial_balance, position_size)
         
         try:
@@ -51,7 +52,7 @@ class Backtester:
                     next_data = next_chunk.iloc[j]
                     
                     # Get trading signal (simulated for caching)
-                    signal = 1 if current_data['close'] < next_data['close'] else -1
+                    signal = 1 if float(current_data['close']) < float(next_data['close']) else -1
                     confidence = 0.6
                     
                     # Execute trades based on signal
@@ -114,10 +115,10 @@ class Backtester:
             
             # Run backtest
             results_json = self._run_backtest_cached(
-                data.to_json(),
+                data.to_json(date_format='iso'),
                 strategy.__class__.__name__,
-                self.initial_balance,
-                self.position_size
+                float(self.initial_balance),
+                float(self.position_size)
             )
             
             # Parse results
@@ -147,7 +148,7 @@ class Backtester:
         self.position = {
             'type': 'long',
             'entry_price': entry_price,
-            'size': position_size,
+            'size': float(position_size),
             'entry_time': next_data.name
         }
     
@@ -159,7 +160,7 @@ class Backtester:
         self.position = {
             'type': 'short',
             'entry_price': entry_price,
-            'size': position_size,
+            'size': float(position_size),
             'entry_time': next_data.name
         }
     
@@ -174,17 +175,17 @@ class Backtester:
             pnl = (self.position['entry_price'] - exit_price) * self.position['size']
         
         # Update balance
-        self.balance += pnl
+        self.balance += float(pnl)
         
         # Record trade
         self.trades.append({
             'type': self.position['type'],
             'entry_time': self.position['entry_time'],
             'exit_time': next_data.name,
-            'entry_price': self.position['entry_price'],
-            'exit_price': exit_price,
-            'pnl': pnl,
-            'return': pnl / (self.position['entry_price'] * self.position['size'])
+            'entry_price': float(self.position['entry_price']),
+            'exit_price': float(exit_price),
+            'pnl': float(pnl),
+            'return': float(pnl / (self.position['entry_price'] * self.position['size']))
         })
         
         self.position = None
@@ -192,7 +193,7 @@ class Backtester:
     def _calculate_equity(self, current_price):
         """Calculate current equity including open position value"""
         if self.position is None:
-            return self.balance
+            return float(self.balance)
         
         current_price = float(current_price)
         if self.position['type'] == 'long':
@@ -200,7 +201,7 @@ class Backtester:
         else:  # short
             unrealized_pnl = (self.position['entry_price'] - current_price) * self.position['size']
         
-        return self.balance + unrealized_pnl
+        return float(self.balance + unrealized_pnl)
     
     def _generate_results(self):
         """Generate backtest results and statistics"""
