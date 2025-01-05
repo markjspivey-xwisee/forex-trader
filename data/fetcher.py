@@ -17,7 +17,7 @@ class DataFetcher:
     def fetch_data(self, days=30):
         """Fetch historical forex data"""
         # For demo, return simulated data
-        dates = pd.date_range(end=datetime.now(), periods=days*24, freq='H')
+        dates = pd.date_range(end=datetime.now(), periods=days*24, freq='h')
         data = pd.DataFrame({
             'open': np.random.normal(1.1, 0.02, len(dates)),
             'high': np.random.normal(1.1, 0.02, len(dates)),
