@@ -15,6 +15,7 @@ from backtesting.backtester import Backtester
 
 st.set_page_config(page_title='AI-Powered Forex Trading Agent', layout='wide')
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def plot_price_and_signals(data, signals=None):
     """Create price chart with signals"""
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
@@ -62,6 +63,27 @@ def plot_price_and_signals(data, signals=None):
     
     return fig
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def plot_equity_curve(equity_curve):
+    """Plot equity curve from backtest results"""
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=[point['timestamp'] for point in equity_curve],
+        y=[point['equity'] for point in equity_curve],
+        mode='lines',
+        name='Portfolio Value'
+    ))
+    
+    fig.update_layout(
+        title='Portfolio Value Over Time',
+        xaxis_title='Date',
+        yaxis_title='Value ($)',
+        height=400
+    )
+    
+    return fig
+
 def main():
     # Title and logo
     col1, col2 = st.columns([1, 5])
@@ -81,7 +103,8 @@ def main():
         backtester = Backtester()
         
         # Get initial data
-        data = data_fetcher.fetch_data(days=30)
+        days = st.sidebar.slider('Data Range (Days)', min_value=30, max_value=180, value=60)
+        data = data_fetcher.fetch_data(days=days)
         data = indicators.add_all_indicators(data)
         
         # Display current price and change
@@ -134,6 +157,29 @@ def main():
                     avg_confidence = sum(confidences) / len(confidences)
                     signal_type = 'BUY' if weighted_signal > 0.5 else 'SELL' if weighted_signal < -0.5 else 'HOLD'
                     st.info(f"Ensemble Signal: {signal_type} (Confidence: {avg_confidence:.2%})")
+        
+        # Backtesting
+        st.subheader("Backtesting")
+        if st.button('Run Backtest'):
+            with st.spinner('Running backtest...'):
+                model = models[selected_model]
+                results = backtester.run(data, model)
+                
+                # Display metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric('Total Return', f"{results['total_return']:.2%}")
+                    st.metric('Win Rate', f"{results['win_rate']:.2%}")
+                with col2:
+                    st.metric('Total Trades', results['total_trades'])
+                    st.metric('Average Return', f"{results['avg_return']:.2%}")
+                with col3:
+                    st.metric('Max Drawdown', f"{results['max_drawdown']:.2%}")
+                    st.metric('Sharpe Ratio', f"{results['sharpe_ratio']:.2f}")
+                
+                # Plot equity curve
+                if results['equity_curve']:
+                    st.plotly_chart(plot_equity_curve(results['equity_curve']), use_container_width=True)
         
         # Price chart
         st.subheader("Price Chart")

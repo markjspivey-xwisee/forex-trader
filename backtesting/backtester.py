@@ -1,11 +1,15 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import streamlit as st
+from functools import lru_cache
+import hashlib
 
 class Backtester:
     def __init__(self, initial_balance=10000, position_size=0.1):
         self.initial_balance = initial_balance
         self.position_size = position_size
+        self._cache = {}
         self.reset()
     
     def reset(self):
@@ -15,41 +19,69 @@ class Backtester:
         self.trades = []
         self.equity_curve = []
     
+    def _generate_cache_key(self, data, strategy):
+        """Generate a unique cache key for the backtest"""
+        # Convert data to string representation
+        data_str = data.to_json()
+        # Get strategy class name
+        strategy_name = strategy.__class__.__name__
+        # Combine with parameters
+        key_str = f"{data_str}_{strategy_name}_{self.initial_balance}_{self.position_size}"
+        # Create hash
+        return hashlib.md5(key_str.encode()).hexdigest()
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
     def run(self, data, strategy):
-        """Run backtest on historical data"""
+        """Run backtest on historical data with caching"""
+        cache_key = self._generate_cache_key(data, strategy)
+        
+        # Check cache
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         self.reset()
         
-        for i in range(len(data)-1):
-            current_data = data.iloc[i]
-            next_data = data.iloc[i+1]
+        try:
+            for i in range(len(data)-1):
+                current_data = data.iloc[i]
+                next_data = data.iloc[i+1]
+                
+                # Get trading signal
+                signal = strategy.predict(current_data)
+                confidence = strategy.get_prediction_confidence(current_data)
+                
+                # Execute trades based on signal
+                if signal != 0 and confidence >= 0.6:  # Only trade with sufficient confidence
+                    if self.position is None:  # No position, consider entering
+                        if signal == 1:  # Buy signal
+                            self._enter_long(current_data, next_data)
+                        elif signal == -1:  # Sell signal
+                            self._enter_short(current_data, next_data)
+                    else:  # In position, consider exiting
+                        if (self.position['type'] == 'long' and signal == -1) or \
+                           (self.position['type'] == 'short' and signal == 1):
+                            self._exit_position(current_data, next_data)
+                
+                # Record equity
+                self.equity_curve.append({
+                    'timestamp': current_data.name,
+                    'equity': self._calculate_equity(current_data['close'])
+                })
             
-            # Get trading signal
-            signal = strategy.predict(current_data)
-            confidence = strategy.get_prediction_confidence(current_data)
+            # Close any remaining position
+            if self.position is not None:
+                self._exit_position(data.iloc[-2], data.iloc[-1])
             
-            # Execute trades based on signal
-            if signal != 0 and confidence >= 0.6:  # Only trade with sufficient confidence
-                if self.position is None:  # No position, consider entering
-                    if signal == 1:  # Buy signal
-                        self._enter_long(current_data, next_data)
-                    elif signal == -1:  # Sell signal
-                        self._enter_short(current_data, next_data)
-                else:  # In position, consider exiting
-                    if (self.position['type'] == 'long' and signal == -1) or \
-                       (self.position['type'] == 'short' and signal == 1):
-                        self._exit_position(current_data, next_data)
+            results = self._generate_results()
             
-            # Record equity
-            self.equity_curve.append({
-                'timestamp': current_data.name,
-                'equity': self._calculate_equity(current_data['close'])
-            })
-        
-        # Close any remaining position
-        if self.position is not None:
-            self._exit_position(data.iloc[-2], data.iloc[-1])
-        
-        return self._generate_results()
+            # Cache results
+            self._cache[cache_key] = results
+            
+            return results
+            
+        except Exception as e:
+            st.error(f"Error during backtesting: {str(e)}")
+            return self._generate_empty_results()
     
     def _enter_long(self, current_data, next_data):
         """Enter long position"""
@@ -116,15 +148,7 @@ class Backtester:
     def _generate_results(self):
         """Generate backtest results and statistics"""
         if not self.trades:
-            return {
-                'total_return': 0,
-                'total_trades': 0,
-                'win_rate': 0,
-                'avg_return': 0,
-                'max_drawdown': 0,
-                'sharpe_ratio': 0,
-                'final_balance': self.initial_balance
-            }
+            return self._generate_empty_results()
         
         # Convert trades to DataFrame for analysis
         trades_df = pd.DataFrame(self.trades)
@@ -154,3 +178,21 @@ class Backtester:
             'trades': self.trades,
             'equity_curve': self.equity_curve
         }
+    
+    def _generate_empty_results(self):
+        """Generate empty results when no trades are made"""
+        return {
+            'total_return': 0,
+            'total_trades': 0,
+            'win_rate': 0,
+            'avg_return': 0,
+            'max_drawdown': 0,
+            'sharpe_ratio': 0,
+            'final_balance': self.initial_balance,
+            'trades': [],
+            'equity_curve': []
+        }
+    
+    def clear_cache(self):
+        """Clear the backtesting cache"""
+        self._cache.clear()
