@@ -1,45 +1,23 @@
 # AI-Powered Forex Trading Agent
 
-An advanced forex trading system that combines machine learning models with technical analysis for automated trading decisions.
+An AI-powered forex trading agent built with Streamlit, featuring real-time market analysis, technical indicators, and machine learning models.
 
 ## Features
 
-### Machine Learning Models
-- Random Forest (Conservative & Aggressive)
-- Neural Networks (MLP & LSTM)
-- Model Ensemble capabilities
-- Feature importance analysis
-- Multiple feature selection methods
-
-### Technical Analysis
-- Customizable indicators:
-  - Moving Averages (Multiple periods)
-  - Bollinger Bands
-  - MACD
-  - RSI
-  - ATR
-  - Stochastic Oscillator
-
-### Risk Management
-- Dynamic position sizing
-- Stop-loss and take-profit optimization
-- Maximum trade limits
-- Risk/reward analysis
-- Portfolio management tools
-
-### Advanced Features
-- GPU acceleration support
-- Bayesian optimization for hyperparameters
-- Ensemble model voting
-- Feature selection methods (PCA, RFE)
-- Real-time market analysis
+- Real-time forex data fetching
+- Technical indicators calculation
+- Multiple ML models (Random Forest, Neural Network)
+- Backtesting capabilities
+- Interactive charts and visualizations
+- Memory-optimized data processing
+- Caching system for better performance
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/forex-trader.git
-cd forex-trader
+git clone https://github.com/yourusername/forex_trader.git
+cd forex_trader
 ```
 
 2. Create a virtual environment:
@@ -50,89 +28,116 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
-pip install -r src/requirements.txt
+pip install -r requirements.txt
 ```
 
-4. Set up your OANDA credentials:
-Create a `.env` file in the src directory with:
-```
+4. Set up environment variables:
+Create a `.env` file in the project root with:
+```env
 OANDA_API_KEY=your_api_key
-OANDA_ACCOUNT_TYPE=practice
-INSTRUMENT=EUR_USD
-GRANULARITY=H1
+OANDA_ACCOUNT_ID=your_account_id
 ```
 
-## Usage
+## Local Development
 
-### Running the Web Interface
+Run the Streamlit app locally:
 ```bash
-cd src
-streamlit run app.py
+streamlit run streamlit_app.py
 ```
 
-### Command Line Interface
+## Streamlit Cloud Deployment
+
+1. Push your code to GitHub:
 ```bash
-# Train models
-python main.py --mode train --days 90
-
-# Run backtest
-python main.py --mode backtest --model random_forest_conservative --days 90 --balance 10000 --position-size 0.1
-
-# Get live trading signals
-python main.py --mode trade --model ensemble
+git add .
+git commit -m "Initial commit"
+git push origin main
 ```
+
+2. Go to [Streamlit Cloud](https://streamlit.io/cloud)
+
+3. Click "New app" and select your repository
+
+4. Set the following:
+   - Main file path: `streamlit_app.py`
+   - Python version: 3.9+
+   - Add your environment variables in the Secrets management
 
 ## Project Structure
 
 ```
-src/
-├── data/               # Data handling and technical indicators
-├── models/            # ML model implementations
-├── backtesting/      # Backtesting engine
-├── app.py            # Streamlit web interface
-├── main.py           # CLI entry point
-└── requirements.txt  # Project dependencies
+forex_trader/
+├── data/
+│   ├── fetcher.py      # Data fetching and caching
+│   └── indicators.py   # Technical indicators
+├── models/
+│   ├── base_model.py   # Base model class
+│   ├── random_forest.py
+│   └── neural_network.py
+├── backtesting/
+│   └── backtester.py   # Backtesting engine
+├── .streamlit/
+│   └── config.toml     # Streamlit configuration
+├── requirements.txt    # Project dependencies
+├── .env               # Environment variables
+└── streamlit_app.py   # Main application
 ```
 
-## Features in Detail
+## Memory Management
 
-### Model Types
-- **Conservative Random Forest**: Lower risk, higher precision
-- **Aggressive Random Forest**: Higher risk, more opportunities
-- **Neural Network**: Pattern recognition
-- **LSTM**: Sequence prediction
-- **Ensemble**: Weighted voting system
+The application includes several optimizations for handling large datasets:
 
-### Technical Indicators
-- Multiple timeframe analysis
-- Customizable indicator parameters
-- Visual analysis tools
-- Real-time updates
+1. Chunked Processing:
+   - Data is processed in configurable chunks
+   - Automatic garbage collection
+   - Memory monitoring
 
-### Risk Management
-- Position sizing calculator
-- Risk per trade limits
-- Maximum drawdown controls
-- Portfolio exposure limits
+2. Caching System:
+   - Multi-level caching
+   - TTL settings
+   - Size limits
+   - Cache clearing functionality
 
-### Advanced Settings
-- GPU acceleration
-- Feature selection methods
-- Hyperparameter optimization
-- Model ensemble weights
+3. Data Validation:
+   - Array length checks
+   - Broadcasting fixes
+   - Type conversion
+   - Error handling
+
+## Configuration
+
+The application can be configured through:
+
+1. `.streamlit/config.toml`:
+   - Server settings
+   - Theme configuration
+   - Performance options
+
+2. Environment variables:
+   - API credentials
+   - Server configuration
+   - Debug settings
+
+## Troubleshooting
+
+1. Memory Issues:
+   - Adjust chunk size in the sidebar
+   - Clear cache using the button
+   - Monitor memory usage in System Status
+
+2. Performance:
+   - Reduce data range
+   - Adjust cache settings
+   - Use the optimized configuration
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Disclaimer
-
-This software is for educational purposes only. Do not risk money which you are afraid to lose. USE THE SOFTWARE AT YOUR OWN RISK. THE AUTHORS AND ALL AFFILIATES ASSUME NO RESPONSIBILITY FOR YOUR TRADING RESULTS.

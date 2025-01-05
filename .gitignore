@@ -22,60 +22,27 @@ wheels/
 
 # Virtual Environment
 venv/
+venv_streamlit/
+.env
+.venv
 ENV/
-env/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# Project specific
-.env
-*.log
-results/
-models/
-*.joblib
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Distribution / packaging
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
+.project
+.pydevproject
+.settings
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
 
-# TensorFlow
-*.ckpt
-*.pb
-*.pbtxt
-checkpoint
+# Project specific
+*.log
+*.sqlite
+*.db
+models/*.pkl
+*.h5
+.DS_Store

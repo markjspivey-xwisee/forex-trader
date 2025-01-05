@@ -1,0 +1,12 @@
+{
+    "train_accuracy": 0.9109947643979057,
+    "validation_accuracy": 0.6041666666666666,
+    "feature_importance": {
+        "SMA_20": 0.2763344810865832,
+        "SMA_50": 0.19334397570497183,
+        "RSI": 0.1405676230673975,
+        "MACD": 0.18968353661990703,
+        "Signal_Line": 0.20007038352114023
+    },
+    "model_type": "Conservative"
+}
