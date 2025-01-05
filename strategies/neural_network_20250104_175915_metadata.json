@@ -1,0 +1,13 @@
+{
+    "model_name": "neural_network",
+    "features": [
+        "SMA_20",
+        "SMA_50",
+        "RSI",
+        "MACD",
+        "Signal_Line"
+    ],
+    "validation_accuracy": 0.5576923076923077,
+    "training_accuracy": 0.5461538461538461,
+    "created_at": "20250104_175915"
+}

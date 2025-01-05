@@ -1,0 +1,81 @@
+{
+    "model_name": "random_forest_conservative",
+    "features": [
+        "Bollinger_Width",
+        "SMA_10",
+        "RSI",
+        "MACD",
+        "SMA_20",
+        "SMA_30",
+        "Signal_Line",
+        "ROC_10",
+        "ATR",
+        "ROC_20",
+        "SMA_50",
+        "SMA_200"
+    ],
+    "metrics": {
+        "accuracy": 0.5752895752895753,
+        "precision": 0.5495867768595041,
+        "recall": 0.9925373134328358,
+        "f1": 0.7074468085106383,
+        "cross_val": 0.5984162895927603
+    },
+    "best_params": {
+        "n_estimators": 100,
+        "min_samples_split": 10,
+        "max_depth": 5,
+        "class_weight": "balanced"
+    },
+    "feature_importance": [
+        {
+            "feature": "SMA_50",
+            "importance": 0.1394819302167825
+        },
+        {
+            "feature": "SMA_200",
+            "importance": 0.1288519292753734
+        },
+        {
+            "feature": "SMA_30",
+            "importance": 0.11712014060133297
+        },
+        {
+            "feature": "SMA_10",
+            "importance": 0.11253559302462003
+        },
+        {
+            "feature": "SMA_20",
+            "importance": 0.08268161114548649
+        },
+        {
+            "feature": "MACD",
+            "importance": 0.07939954013915465
+        },
+        {
+            "feature": "ROC_20",
+            "importance": 0.07725105543212274
+        },
+        {
+            "feature": "ATR",
+            "importance": 0.064421297368922
+        },
+        {
+            "feature": "Signal_Line",
+            "importance": 0.06248065583116254
+        },
+        {
+            "feature": "ROC_10",
+            "importance": 0.048079368494835156
+        },
+        {
+            "feature": "Bollinger_Width",
+            "importance": 0.04538197381904481
+        },
+        {
+            "feature": "RSI",
+            "importance": 0.04231490465116276
+        }
+    ],
+    "created_at": "20250104_224625"
+}

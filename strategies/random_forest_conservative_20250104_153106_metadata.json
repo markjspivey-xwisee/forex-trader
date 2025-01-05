@@ -1,0 +1,15 @@
+{
+    "model_name": "random_forest_conservative",
+    "features": [
+        "SMA_20",
+        "SMA_50",
+        "RSI",
+        "MACD",
+        "Signal_Line",
+        "ROC_10",
+        "ROC_20"
+    ],
+    "validation_accuracy": 0.5670498084291188,
+    "training_accuracy": 0.7836538461538461,
+    "created_at": "20250104_153106"
+}

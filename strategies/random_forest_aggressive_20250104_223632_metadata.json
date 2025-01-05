@@ -1,0 +1,46 @@
+{
+    "model_name": "random_forest_aggressive",
+    "features": [
+        "SMA_10",
+        "SMA_30",
+        "RSI",
+        "MACD",
+        "Signal_Line"
+    ],
+    "metrics": {
+        "accuracy": 0.5637065637065637,
+        "precision": 0.5532994923857868,
+        "recall": 0.8134328358208955,
+        "f1": 0.6586102719033232,
+        "cross_val": 0.5481900452488688
+    },
+    "best_params": {
+        "n_estimators": 300,
+        "min_samples_split": 5,
+        "max_depth": 7,
+        "class_weight": "balanced"
+    },
+    "feature_importance": [
+        {
+            "feature": "SMA_30",
+            "importance": 0.2819184135272824
+        },
+        {
+            "feature": "SMA_10",
+            "importance": 0.24894157651326745
+        },
+        {
+            "feature": "MACD",
+            "importance": 0.18214556625848263
+        },
+        {
+            "feature": "Signal_Line",
+            "importance": 0.16306186536942868
+        },
+        {
+            "feature": "RSI",
+            "importance": 0.1239325783315388
+        }
+    ],
+    "created_at": "20250104_223632"
+}

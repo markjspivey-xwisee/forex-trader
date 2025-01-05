@@ -1,0 +1,46 @@
+{
+    "model_name": "random_forest_conservative",
+    "features": [
+        "SMA_10",
+        "SMA_30",
+        "RSI",
+        "MACD",
+        "Signal_Line"
+    ],
+    "metrics": {
+        "accuracy": 0.5637065637065637,
+        "precision": 0.5458515283842795,
+        "recall": 0.9328358208955224,
+        "f1": 0.6887052341597796,
+        "cross_val": 0.5097285067873303
+    },
+    "best_params": {
+        "n_estimators": 100,
+        "min_samples_split": 10,
+        "max_depth": 3,
+        "class_weight": "balanced"
+    },
+    "feature_importance": [
+        {
+            "feature": "SMA_30",
+            "importance": 0.3021984409873962
+        },
+        {
+            "feature": "MACD",
+            "importance": 0.2456156634815221
+        },
+        {
+            "feature": "SMA_10",
+            "importance": 0.2434992255937863
+        },
+        {
+            "feature": "Signal_Line",
+            "importance": 0.11548095192180924
+        },
+        {
+            "feature": "RSI",
+            "importance": 0.0932057180154863
+        }
+    ],
+    "created_at": "20250104_223916"
+}

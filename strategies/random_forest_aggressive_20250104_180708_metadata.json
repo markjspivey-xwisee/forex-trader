@@ -1,0 +1,15 @@
+{
+    "model_name": "random_forest_aggressive",
+    "features": [
+        "SMA_20",
+        "SMA_50",
+        "RSI",
+        "MACD",
+        "Signal_Line",
+        "ATR",
+        "Bollinger_Width"
+    ],
+    "validation_accuracy": 0.5807692307692308,
+    "training_accuracy": 0.9643888354186718,
+    "created_at": "20250104_180708"
+}

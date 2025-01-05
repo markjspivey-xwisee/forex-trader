@@ -1,0 +1,56 @@
+{
+    "model_name": "random_forest_conservative",
+    "features": [
+        "SMA_20",
+        "SMA_50",
+        "RSI",
+        "MACD",
+        "Signal_Line",
+        "ATR",
+        "Bollinger_Width"
+    ],
+    "metrics": {
+        "accuracy": 0.6023166023166023,
+        "precision": 0.5665236051502146,
+        "recall": 0.9850746268656716,
+        "f1": 0.7193460490463215,
+        "cross_val": 0.38303167420814477
+    },
+    "best_params": {
+        "n_estimators": 200,
+        "min_samples_split": 30,
+        "max_depth": 5,
+        "class_weight": "balanced"
+    },
+    "feature_importance": [
+        {
+            "feature": "SMA_50",
+            "importance": 0.2564066971532889
+        },
+        {
+            "feature": "SMA_20",
+            "importance": 0.19755907251146837
+        },
+        {
+            "feature": "MACD",
+            "importance": 0.1575944536312429
+        },
+        {
+            "feature": "Bollinger_Width",
+            "importance": 0.1089840037638816
+        },
+        {
+            "feature": "Signal_Line",
+            "importance": 0.10158455599206187
+        },
+        {
+            "feature": "RSI",
+            "importance": 0.09617323037902115
+        },
+        {
+            "feature": "ATR",
+            "importance": 0.08169798656903525
+        }
+    ],
+    "created_at": "20250104_224240"
+}

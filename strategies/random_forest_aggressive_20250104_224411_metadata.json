@@ -1,0 +1,81 @@
+{
+    "model_name": "random_forest_aggressive",
+    "features": [
+        "Bollinger_Width",
+        "SMA_10",
+        "RSI",
+        "MACD",
+        "SMA_20",
+        "SMA_30",
+        "Signal_Line",
+        "ROC_10",
+        "ATR",
+        "ROC_20",
+        "SMA_50",
+        "SMA_200"
+    ],
+    "metrics": {
+        "accuracy": 0.5598455598455598,
+        "precision": 0.542016806722689,
+        "recall": 0.9626865671641791,
+        "f1": 0.6935483870967742,
+        "cross_val": 0.6060331825037707
+    },
+    "best_params": {
+        "n_estimators": 300,
+        "min_samples_split": 10,
+        "max_depth": 15,
+        "class_weight": "balanced"
+    },
+    "feature_importance": [
+        {
+            "feature": "SMA_200",
+            "importance": 0.13105603254792164
+        },
+        {
+            "feature": "SMA_50",
+            "importance": 0.1308316879088809
+        },
+        {
+            "feature": "SMA_30",
+            "importance": 0.10496224128980504
+        },
+        {
+            "feature": "SMA_10",
+            "importance": 0.09442557030945666
+        },
+        {
+            "feature": "SMA_20",
+            "importance": 0.08077863497675651
+        },
+        {
+            "feature": "MACD",
+            "importance": 0.07382470502197924
+        },
+        {
+            "feature": "Bollinger_Width",
+            "importance": 0.07124637183494562
+        },
+        {
+            "feature": "ROC_20",
+            "importance": 0.07020752706924621
+        },
+        {
+            "feature": "Signal_Line",
+            "importance": 0.06907605655633528
+        },
+        {
+            "feature": "ATR",
+            "importance": 0.061643158945463614
+        },
+        {
+            "feature": "RSI",
+            "importance": 0.05706729699438517
+        },
+        {
+            "feature": "ROC_10",
+            "importance": 0.05488071654482421
+        }
+    ],
+    "created_at": "20250104_224411"
+}

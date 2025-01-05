@@ -1,0 +1,15 @@
+{
+    "model_name": "neural_network",
+    "features": [
+        "SMA_20",
+        "SMA_50",
+        "RSI",
+        "MACD",
+        "Signal_Line",
+        "ATR",
+        "Bollinger_Width"
+    ],
+    "validation_accuracy": 0.5576923076923077,
+    "training_accuracy": 0.5553416746871992,
+    "created_at": "20250104_180708"
+}

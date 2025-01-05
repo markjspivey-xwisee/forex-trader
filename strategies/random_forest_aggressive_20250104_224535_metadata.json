@@ -1,0 +1,56 @@
+{
+    "model_name": "random_forest_aggressive",
+    "features": [
+        "SMA_20",
+        "SMA_50",
+        "RSI",
+        "MACD",
+        "Signal_Line",
+        "ATR",
+        "Bollinger_Width"
+    ],
+    "metrics": {
+        "accuracy": 0.5714285714285714,
+        "precision": 0.5497835497835498,
+        "recall": 0.9477611940298507,
+        "f1": 0.6958904109589041,
+        "cross_val": 0.5138009049773756
+    },
+    "best_params": {
+        "n_estimators": 300,
+        "min_samples_split": 10,
+        "max_depth": 15,
+        "class_weight": "balanced"
+    },
+    "feature_importance": [
+        {
+            "feature": "SMA_50",
+            "importance": 0.2280193588911164
+        },
+        {
+            "feature": "SMA_20",
+            "importance": 0.18292421559212843
+        },
+        {
+            "feature": "MACD",
+            "importance": 0.13313987649165424
+        },
+        {
+            "feature": "Bollinger_Width",
+            "importance": 0.12688535681754115
+        },
+        {
+            "feature": "Signal_Line",
+            "importance": 0.11817052114497749
+        },
+        {
+            "feature": "ATR",
+            "importance": 0.10547914188900584
+        },
+        {
+            "feature": "RSI",
+            "importance": 0.10538152917357642
+        }
+    ],
+    "created_at": "20250104_224535"
+}
