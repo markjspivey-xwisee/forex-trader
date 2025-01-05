@@ -6,6 +6,9 @@ from tensorflow.keras.layers import Dense, Dropout, LSTM
 from tensorflow.keras.optimizers import Adam
 import streamlit as st
 import gc
+import json
+import pandas as pd
+from io import StringIO
 from .base_model import BaseModel
 
 class NeuralNetworkModel(BaseModel):
@@ -43,20 +46,31 @@ class NeuralNetworkModel(BaseModel):
             st.error(f"Error building neural network: {str(e)}")
             raise
     
-    def _train_model(self, X_train, y_train):
-        """Train the neural network model"""
+    def train(self, data):
+        """Train the model and return metrics"""
         try:
-            # Ensure data is properly scaled
-            if not hasattr(self.scaler, 'mean_'):
-                self.scaler.fit(X_train)
-            X_train_scaled = self.scaler.transform(X_train)
+            # Prepare data
+            data_json = data.to_json(date_format='iso')
+            prepared_data_json = self._prepare_data_cached(data_json, self.feature_columns)
             
-            # Convert labels to float32
-            y_train = y_train.astype(np.float32)
+            # Split and scale data
+            split_data_json = self._split_and_scale_data(prepared_data_json)
+            split_data = json.loads(split_data_json)
+            
+            # Convert lists back to numpy arrays
+            X_train = np.array(split_data['X_train'])
+            X_val = np.array(split_data['X_val'])
+            y_train = np.array(split_data['y_train'])
+            y_val = np.array(split_data['y_val'])
+            
+            # Reconstruct scaler
+            self.scaler = StandardScaler()
+            self.scaler.mean_ = np.array(split_data['scaler_mean'])
+            self.scaler.scale_ = np.array(split_data['scaler_scale'])
             
             # Train model
             history = self.model.fit(
-                X_train_scaled,
+                X_train,
                 y_train,
                 epochs=50,
                 batch_size=32,
@@ -71,36 +85,34 @@ class NeuralNetworkModel(BaseModel):
                 ]
             )
             
-            # Force garbage collection
-            gc.collect()
-            
-        except Exception as e:
-            st.error(f"Error training neural network: {str(e)}")
-            raise
-    
-    def score(self, X, y):
-        """Calculate accuracy score for the model"""
-        try:
-            if not hasattr(self.scaler, 'mean_'):
-                return 0.0
-            
-            # Scale features
-            X_scaled = self.scaler.transform(X)
-            
-            # Get predictions
-            predictions = self.model.predict(X_scaled, verbose=0)
+            # Calculate metrics
+            train_predictions = self.model.predict(X_train, verbose=0)
+            val_predictions = self.model.predict(X_val, verbose=0)
             
             # Convert predictions to binary signals
-            predicted_signals = np.where(predictions > 0.5, 1, np.where(predictions < -0.5, -1, 0))
+            train_signals = np.where(train_predictions > 0.5, 1, np.where(train_predictions < -0.5, -1, 0))
+            val_signals = np.where(val_predictions > 0.5, 1, np.where(val_predictions < -0.5, -1, 0))
             
-            # Calculate accuracy
-            accuracy = np.mean(predicted_signals.flatten() == y)
+            # Calculate accuracies
+            train_accuracy = float(np.mean(train_signals.flatten() == y_train))
+            val_accuracy = float(np.mean(val_signals.flatten() == y_val))
             
-            return float(accuracy)
+            # Clear prediction caches after training
+            self._prediction_cache.clear()
+            self._confidence_cache.clear()
+            gc.collect()  # Force garbage collection
+            
+            return {
+                'train_accuracy': train_accuracy,
+                'validation_accuracy': val_accuracy
+            }
             
         except Exception as e:
-            st.error(f"Error calculating score: {str(e)}")
-            return 0.0
+            st.error(f"Error training model: {str(e)}")
+            return {
+                'train_accuracy': 0.0,
+                'validation_accuracy': 0.0
+            }
     
     def predict(self, data_point):
         """Make prediction for a single data point"""
