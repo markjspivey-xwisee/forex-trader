@@ -10,19 +10,23 @@ from dotenv import load_dotenv
 
 class OandaClient:
     def __init__(self):
-        # Load environment variables
-        load_dotenv()
-        
-        self.api_key = os.getenv('OANDA_API_KEY')
-        self.account_id = os.getenv('OANDA_ACCOUNT_ID')
+        # Try to get credentials from Streamlit secrets first
+        try:
+            self.api_key = st.secrets["OANDA_API_KEY"]
+            self.account_id = st.secrets["OANDA_ACCOUNT_ID"]
+        except Exception:
+            # Fall back to environment variables
+            load_dotenv()
+            self.api_key = os.getenv('OANDA_API_KEY')
+            self.account_id = os.getenv('OANDA_ACCOUNT_ID')
         
         if not self.api_key:
-            st.error("OANDA API key not found. Please check your environment variables.")
+            st.error("OANDA API key not found. Please check your Streamlit secrets or environment variables.")
             self.api = None
             return
             
         if not self.account_id:
-            st.error("OANDA account ID not found. Please check your environment variables.")
+            st.error("OANDA account ID not found. Please check your Streamlit secrets or environment variables.")
             self.api = None
             return
         
@@ -52,6 +56,12 @@ class OandaClient:
             Current settings:
             - Account ID: {self.account_id}
             - API Key: {self.api_key[:5]}...{self.api_key[-5:] if self.api_key else ''}
+            
+            Make sure you've added these to your Streamlit secrets:
+            ```toml
+            OANDA_API_KEY = "your-full-api-key-here"
+            OANDA_ACCOUNT_ID = "your-account-id-here"
+            ```
             """)
             self.api = None
     
