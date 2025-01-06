@@ -16,12 +16,12 @@ class OandaClient:
         # Try to get credentials from Streamlit secrets first
         try:
             # Debug: Show raw secrets access
-            st.write("Trying to access secrets directly...")
-            api_key = st.secrets.get("OANDA_API_KEY", "")
-            self.account_id = st.secrets.get("OANDA_ACCOUNT_ID", "")
+            st.write("Trying to access secrets as dictionary...")
+            api_key = st.secrets["OANDA_API_KEY"]  # Direct dictionary access
+            self.account_id = st.secrets["OANDA_ACCOUNT_ID"]  # Direct dictionary access
             
             # Debug: Show what we got
-            st.write("Raw API Key:", "*" * len(api_key) if api_key else "Not found")
+            st.write("Raw API Key length:", len(api_key) if api_key else "Not found")
             st.write("Raw Account ID:", self.account_id if self.account_id else "Not found")
             
             # Add 'Bearer ' prefix if not present and if we have an API key
@@ -62,7 +62,8 @@ class OandaClient:
             # Debug: Show what we're using to initialize the API
             st.write("Initializing OANDA API with:")
             st.write("- Account ID:", self.account_id)
-            st.write("- API Key starts with:", self.api_key[:10] + "..." if self.api_key else "None")
+            st.write("- API Key length:", len(self.api_key) if self.api_key else "None")
+            st.write("- API Key format:", "Bearer *" * len(api_key.replace('Bearer ', '')))
             
             # Add practice API URL for demo accounts
             self.api = oandapyV20.API(
