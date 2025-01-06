@@ -1,8 +1,8 @@
 streamlit>=1.24.0
 pandas>=1.5.3
 numpy>=1.24.3
-plotly>=5.13.1
 scikit-learn>=1.2.2
 tensorflow>=2.12.0
+plotly>=5.14.1
 oandapyV20>=0.7.2
 python-dotenv>=1.0.0
