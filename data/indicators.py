@@ -1,228 +1,125 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
-from functools import lru_cache
 import gc
-from io import StringIO
 
 class TechnicalIndicators:
-    def __init__(self):
+    def __init__(self, chunk_size=1000):
+        self._chunk_size = chunk_size
         self._cache = {}
-        self._chunk_size = 1000  # Number of rows to process at a time
     
-    @staticmethod
-    @st.cache_data(ttl=300, max_entries=10)  # Cache for 5 minutes, limit entries
-    def _process_chunk_cached(chunk_data_json):
-        """Process a single chunk of data with caching"""
-        # Convert JSON to DataFrame using StringIO
-        chunk_data = pd.read_json(StringIO(chunk_data_json))
-        df = chunk_data.copy()
-        
+    def _calculate_sma(self, data, period):
+        """Calculate Simple Moving Average"""
+        return data['close'].rolling(window=period).mean()
+    
+    def _calculate_bollinger_bands(self, data, period=20, std_dev=2):
+        """Calculate Bollinger Bands"""
+        sma = self._calculate_sma(data, period)
+        std = data['close'].rolling(window=period).std()
+        upper_band = sma + (std * std_dev)
+        lower_band = sma - (std * std_dev)
+        return upper_band, lower_band
+    
+    def _calculate_macd(self, data, fast=12, slow=26, signal=9):
+        """Calculate MACD"""
+        exp1 = data['close'].ewm(span=fast, adjust=False).mean()
+        exp2 = data['close'].ewm(span=slow, adjust=False).mean()
+        macd = exp1 - exp2
+        signal_line = macd.ewm(span=signal, adjust=False).mean()
+        return macd, signal_line
+    
+    def _calculate_rsi(self, data, period=14):
+        """Calculate RSI"""
+        delta = data['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        return 100 - (100 / (1 + rs))
+    
+    def _calculate_atr(self, data, period=14):
+        """Calculate Average True Range"""
+        high_low = data['high'] - data['low']
+        high_close = abs(data['high'] - data['close'].shift())
+        low_close = abs(data['low'] - data['close'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        return true_range.rolling(window=period).mean()
+    
+    def _calculate_stochastic(self, data, k_period=14, d_period=3):
+        """Calculate Stochastic Oscillator"""
+        low_min = data['low'].rolling(window=k_period).min()
+        high_max = data['high'].rolling(window=k_period).max()
+        k = 100 * ((data['close'] - low_min) / (high_max - low_min))
+        d = k.rolling(window=d_period).mean()
+        return k, d
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def _process_chunk_cached(self, chunk_data_json):
+        """Process a chunk of data with caching"""
         try:
-            # Convert values to numpy arrays and ensure same length
-            close_values = df['close'].values
-            high_values = df['high'].values
-            low_values = df['low'].values
+            # Convert JSON to DataFrame
+            chunk_data = pd.read_json(chunk_data_json)
             
-            # Verify array lengths
-            if not (len(close_values) == len(high_values) == len(low_values)):
-                raise ValueError("Input arrays must have the same length")
+            # Calculate indicators
+            chunk_data['SMA_20'] = self._calculate_sma(chunk_data, 20)
+            chunk_data['SMA_50'] = self._calculate_sma(chunk_data, 50)
             
-            # Moving averages
-            for period in [20, 50]:
-                df[f'SMA_{period}'] = TechnicalIndicators._calculate_sma(
-                    tuple(close_values.tolist()),
-                    period
-                )
+            bb_upper, bb_lower = self._calculate_bollinger_bands(chunk_data)
+            chunk_data['BB_upper'] = bb_upper
+            chunk_data['BB_lower'] = bb_lower
             
-            # Bollinger Bands
-            df['BB_middle'] = TechnicalIndicators._calculate_sma(
-                tuple(close_values.tolist()),
-                20
-            )
-            std = TechnicalIndicators._calculate_std(
-                tuple(close_values.tolist()),
-                20
-            )
-            df['BB_upper'] = df['BB_middle'] + 2 * np.array(std)
-            df['BB_lower'] = df['BB_middle'] - 2 * np.array(std)
+            macd, signal = self._calculate_macd(chunk_data)
+            chunk_data['MACD'] = macd
+            chunk_data['Signal_Line'] = signal
             
-            # MACD
-            macd, signal = TechnicalIndicators._calculate_macd(
-                tuple(close_values.tolist())
-            )
-            df['MACD'] = macd
-            df['Signal_Line'] = signal
+            chunk_data['RSI'] = self._calculate_rsi(chunk_data)
+            chunk_data['ATR'] = self._calculate_atr(chunk_data)
             
-            # RSI
-            df['RSI'] = TechnicalIndicators._calculate_rsi(
-                tuple(close_values.tolist())
-            )
+            k, d = self._calculate_stochastic(chunk_data)
+            chunk_data['Stoch_K'] = k
+            chunk_data['Stoch_D'] = d
             
-            # ATR
-            df['ATR'] = TechnicalIndicators._calculate_atr(
-                tuple(high_values.tolist()),
-                tuple(low_values.tolist()),
-                tuple(close_values.tolist())
-            )
-            
-            # Stochastic Oscillator
-            k, d = TechnicalIndicators._calculate_stochastic(
-                tuple(high_values.tolist()),
-                tuple(low_values.tolist()),
-                tuple(close_values.tolist())
-            )
-            df['Stoch_K'] = k
-            df['Stoch_D'] = d
-            
-            gc.collect()  # Force garbage collection
-            return df
+            # Convert back to JSON for caching
+            return chunk_data.to_json(date_format='iso')
             
         except Exception as e:
-            st.error(f"Error in _process_chunk_cached: {str(e)}")
-            raise
+            st.error(f"Error processing chunk: {str(e)}")
+            return None
     
     def add_all_indicators(self, data):
-        """Add all technical indicators to the dataset with memory management"""
+        """Add all technical indicators to the data"""
         try:
+            processed_chunks = []
+            
             # Process data in chunks
-            chunks = []
             for i in range(0, len(data), self._chunk_size):
                 chunk = data.iloc[i:i + self._chunk_size].copy()
-                # Convert chunk to JSON for caching
+                
+                # Process chunk with caching
                 chunk_json = chunk.to_json(date_format='iso')
-                processed_chunk = self._process_chunk_cached(chunk_json)
-                chunks.append(processed_chunk)
-                gc.collect()  # Force garbage collection
+                processed_chunk_json = self._process_chunk_cached(chunk_json)
+                
+                if processed_chunk_json is None:
+                    return None
+                
+                processed_chunk = pd.read_json(processed_chunk_json)
+                processed_chunks.append(processed_chunk)
+                
+                # Force garbage collection after each chunk
+                gc.collect()
             
             # Combine chunks
-            result = pd.concat(chunks)
+            result = pd.concat(processed_chunks)
             
-            # Drop any NaN values that resulted from the calculations
+            # Drop any NaN values
             result = result.dropna()
             
             return result
             
         except Exception as e:
-            st.error(f"Error calculating indicators: {str(e)}")
-            return data
-    
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _calculate_sma(values, window):
-        """Calculate Simple Moving Average with caching"""
-        try:
-            series = pd.Series(values)
-            result = series.rolling(window=window).mean()
-            return result.values.tolist()
-        except Exception as e:
-            st.error(f"Error in _calculate_sma: {str(e)}")
-            return [0] * len(values)
-    
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _calculate_std(values, window):
-        """Calculate Standard Deviation with caching"""
-        try:
-            series = pd.Series(values)
-            result = series.rolling(window=window).std()
-            return result.values.tolist()
-        except Exception as e:
-            st.error(f"Error in _calculate_std: {str(e)}")
-            return [0] * len(values)
-    
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _calculate_macd(values):
-        """Calculate MACD with caching"""
-        try:
-            series = pd.Series(values)
-            exp1 = series.ewm(span=12, adjust=False).mean()
-            exp2 = series.ewm(span=26, adjust=False).mean()
-            macd = exp1 - exp2
-            signal = macd.ewm(span=9, adjust=False).mean()
-            return macd.values.tolist(), signal.values.tolist()
-        except Exception as e:
-            st.error(f"Error in _calculate_macd: {str(e)}")
-            return [0] * len(values), [0] * len(values)
-    
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _calculate_rsi(values):
-        """Calculate RSI with caching"""
-        try:
-            series = pd.Series(values)
-            delta = series.diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            result = 100 - (100 / (1 + rs))
-            return result.values.tolist()
-        except Exception as e:
-            st.error(f"Error in _calculate_rsi: {str(e)}")
-            return [50] * len(values)  # Neutral RSI value
-    
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _calculate_atr(high_values, low_values, close_values):
-        """Calculate ATR with caching"""
-        try:
-            if not (len(high_values) == len(low_values) == len(close_values)):
-                raise ValueError("Input arrays must have the same length")
-            
-            high = pd.Series(high_values)
-            low = pd.Series(low_values)
-            close = pd.Series(close_values)
-            
-            high_low = high - low
-            high_close = np.abs(high - close.shift())
-            low_close = np.abs(low - close.shift())
-            ranges = pd.concat([high_low, high_close, low_close], axis=1)
-            true_range = ranges.max(axis=1)
-            result = true_range.rolling(14).mean()
-            return result.values.tolist()
-        except Exception as e:
-            st.error(f"Error in _calculate_atr: {str(e)}")
-            return [0] * len(high_values)
-    
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _calculate_stochastic(high_values, low_values, close_values):
-        """Calculate Stochastic Oscillator with caching"""
-        try:
-            if not (len(high_values) == len(low_values) == len(close_values)):
-                raise ValueError("Input arrays must have the same length")
-            
-            high = pd.Series(high_values)
-            low = pd.Series(low_values)
-            close = pd.Series(close_values)
-            
-            low_14 = low.rolling(window=14).min()
-            high_14 = high.rolling(window=14).max()
-            
-            # Handle division by zero
-            denominator = high_14 - low_14
-            k = np.where(
-                denominator != 0,
-                ((close - low_14) / denominator) * 100,
-                50  # Default to neutral value when denominator is zero
-            )
-            k_series = pd.Series(k)
-            d = k_series.rolling(window=3).mean()
-            
-            return k_series.values.tolist(), d.values.tolist()
-        except Exception as e:
-            st.error(f"Error in _calculate_stochastic: {str(e)}")
-            return [50] * len(high_values), [50] * len(high_values)  # Neutral values
+            st.error(f"Error adding indicators: {str(e)}")
+            return None
     
     def clear_cache(self):
-        """Clear all caches and force garbage collection"""
+        """Clear indicator cache"""
         self._cache.clear()
-        # Clear all lru_cache decorators
-        self._calculate_sma.cache_clear()
-        self._calculate_std.cache_clear()
-        self._calculate_macd.cache_clear()
-        self._calculate_rsi.cache_clear()
-        self._calculate_atr.cache_clear()
-        self._calculate_stochastic.cache_clear()
-        gc.collect()
