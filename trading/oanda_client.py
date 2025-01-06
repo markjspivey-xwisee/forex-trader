@@ -6,9 +6,13 @@ from oandapyV20.exceptions import V20Error
 import streamlit as st
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 
 class OandaClient:
     def __init__(self):
+        # Load environment variables
+        load_dotenv()
+        
         self.api_key = os.getenv('OANDA_API_KEY')
         self.account_id = os.getenv('OANDA_ACCOUNT_ID')
         

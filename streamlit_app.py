@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 # Add the current directory to PYTHONPATH
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,11 +18,15 @@ import time
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+env_path = Path(current_dir) / '.env'
+load_dotenv(dotenv_path=env_path)
 
-# Check OANDA credentials
-if not os.getenv('OANDA_API_KEY') or not os.getenv('OANDA_ACCOUNT_ID'):
-    st.error("""
+# Verify OANDA credentials are loaded
+api_key = os.getenv('OANDA_API_KEY')
+account_id = os.getenv('OANDA_ACCOUNT_ID')
+
+if not api_key or not account_id:
+    st.error(f"""
     OANDA API credentials not found!
     
     Please set up your OANDA credentials in the .env file:
@@ -31,6 +36,10 @@ if not os.getenv('OANDA_API_KEY') or not os.getenv('OANDA_ACCOUNT_ID'):
     4. Generate an API key for the practice account
     5. Copy your Account ID from the practice account dashboard
     6. Update the .env file with your credentials
+    
+    Current values:
+    - API Key: {api_key}
+    - Account ID: {account_id}
     """)
     st.stop()
 

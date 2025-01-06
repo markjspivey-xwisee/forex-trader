@@ -2,11 +2,11 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import gc
+from io import StringIO
 
 class TechnicalIndicators:
     def __init__(self, chunk_size=1000):
         self._chunk_size = chunk_size
-        self._cache = {}
     
     def _calculate_sma(self, data, period):
         """Calculate Simple Moving Average"""
@@ -53,29 +53,60 @@ class TechnicalIndicators:
         d = k.rolling(window=d_period).mean()
         return k, d
     
+    @staticmethod
     @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def _process_chunk_cached(self, chunk_data_json):
+    def _process_chunk_cached(chunk_data_json):
         """Process a chunk of data with caching"""
         try:
-            # Convert JSON to DataFrame
-            chunk_data = pd.read_json(chunk_data_json)
+            # Convert JSON to DataFrame using StringIO
+            chunk_data = pd.read_json(StringIO(chunk_data_json))
             
             # Calculate indicators
-            chunk_data['SMA_20'] = self._calculate_sma(chunk_data, 20)
-            chunk_data['SMA_50'] = self._calculate_sma(chunk_data, 50)
+            # SMA
+            sma_20 = chunk_data['close'].rolling(window=20).mean()
+            sma_50 = chunk_data['close'].rolling(window=50).mean()
             
-            bb_upper, bb_lower = self._calculate_bollinger_bands(chunk_data)
+            # Bollinger Bands
+            std = chunk_data['close'].rolling(window=20).std()
+            bb_upper = sma_20 + (std * 2)
+            bb_lower = sma_20 - (std * 2)
+            
+            # MACD
+            exp1 = chunk_data['close'].ewm(span=12, adjust=False).mean()
+            exp2 = chunk_data['close'].ewm(span=26, adjust=False).mean()
+            macd = exp1 - exp2
+            signal = macd.ewm(span=9, adjust=False).mean()
+            
+            # RSI
+            delta = chunk_data['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            
+            # ATR
+            high_low = chunk_data['high'] - chunk_data['low']
+            high_close = abs(chunk_data['high'] - chunk_data['close'].shift())
+            low_close = abs(chunk_data['low'] - chunk_data['close'].shift())
+            ranges = pd.concat([high_low, high_close, low_close], axis=1)
+            true_range = ranges.max(axis=1)
+            atr = true_range.rolling(window=14).mean()
+            
+            # Stochastic
+            low_min = chunk_data['low'].rolling(window=14).min()
+            high_max = chunk_data['high'].rolling(window=14).max()
+            k = 100 * ((chunk_data['close'] - low_min) / (high_max - low_min))
+            d = k.rolling(window=3).mean()
+            
+            # Add indicators to DataFrame
+            chunk_data['SMA_20'] = sma_20
+            chunk_data['SMA_50'] = sma_50
             chunk_data['BB_upper'] = bb_upper
             chunk_data['BB_lower'] = bb_lower
-            
-            macd, signal = self._calculate_macd(chunk_data)
             chunk_data['MACD'] = macd
             chunk_data['Signal_Line'] = signal
-            
-            chunk_data['RSI'] = self._calculate_rsi(chunk_data)
-            chunk_data['ATR'] = self._calculate_atr(chunk_data)
-            
-            k, d = self._calculate_stochastic(chunk_data)
+            chunk_data['RSI'] = rsi
+            chunk_data['ATR'] = atr
             chunk_data['Stoch_K'] = k
             chunk_data['Stoch_D'] = d
             
@@ -102,7 +133,7 @@ class TechnicalIndicators:
                 if processed_chunk_json is None:
                     return None
                 
-                processed_chunk = pd.read_json(processed_chunk_json)
+                processed_chunk = pd.read_json(StringIO(processed_chunk_json))
                 processed_chunks.append(processed_chunk)
                 
                 # Force garbage collection after each chunk
@@ -122,4 +153,4 @@ class TechnicalIndicators:
     
     def clear_cache(self):
         """Clear indicator cache"""
-        self._cache.clear()
+        st.cache_data.clear()

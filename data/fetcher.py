@@ -8,10 +8,10 @@ from io import StringIO
 class DataFetcher:
     def __init__(self, chunk_size=1000):
         self._chunk_size = chunk_size
-        self._cache = {}
     
+    @staticmethod
     @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def _fetch_data_cached(self, days):
+    def _fetch_data_cached(days):
         """Fetch data with caching"""
         try:
             # Generate sample data for now
@@ -59,7 +59,7 @@ class DataFetcher:
                 return None
             
             # Process data in chunks
-            data = pd.read_json(data_json)
+            data = pd.read_json(StringIO(data_json))  # Use StringIO to wrap JSON string
             processed_chunks = []
             
             for i in range(0, len(data), self._chunk_size):
@@ -75,4 +75,4 @@ class DataFetcher:
     
     def clear_cache(self):
         """Clear data cache"""
-        self._cache.clear()
+        st.cache_data.clear()
