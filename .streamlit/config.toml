@@ -1,38 +1,13 @@
-[global]
-# Global configs
-showWarningOnDirectExecution = false
-developmentMode = false
-
 [server]
-# Server configs
-maxUploadSize = 1028
-maxMessageSize = 1028
+maxUploadSize = 200
+maxMessageSize = 200
 enableCORS = false
 enableXsrfProtection = false
 enableWebsocketCompression = false
 
-[browser]
-# Browser configs
-gatherUsageStats = false
-serverAddress = "localhost"
-
 [theme]
-# Theme configs
 primaryColor = "#007bff"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f8f9fa"
 textColor = "#212529"
-
-[runner]
-# Runner configs
-magicEnabled = true
-fastReruns = true
-
-[client]
-# Client configs
-showErrorDetails = true
-toolbarMode = "minimal"
-
-[logger]
-# Logger configs
-level = "warning"
+font = "sans serif"

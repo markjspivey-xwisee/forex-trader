@@ -21,24 +21,28 @@ from dotenv import load_dotenv
 env_path = Path(current_dir) / '.env'
 load_dotenv(dotenv_path=env_path)
 
-# Verify OANDA credentials are loaded
-api_key = os.getenv('OANDA_API_KEY')
-account_id = os.getenv('OANDA_ACCOUNT_ID')
+# Try to get credentials from Streamlit secrets first, then fall back to environment variables
+try:
+    api_key = st.secrets["OANDA_API_KEY"]
+    account_id = st.secrets["OANDA_ACCOUNT_ID"]
+except Exception:
+    api_key = os.getenv('OANDA_API_KEY')
+    account_id = os.getenv('OANDA_ACCOUNT_ID')
 
 if not api_key or not account_id:
     st.error(f"""
     OANDA API credentials not found!
     
-    Please set up your OANDA credentials in the .env file:
-    1. Go to OANDA's website (https://www.oanda.com/)
-    2. Create a practice account if you don't have one
-    3. Once logged in, go to "Manage API Access"
-    4. Generate an API key for the practice account
-    5. Copy your Account ID from the practice account dashboard
-    6. Update the .env file with your credentials
+    Please set up your OANDA credentials in Streamlit's secrets management:
+    1. Go to your Streamlit dashboard
+    2. Select your app
+    3. Go to Settings > Secrets
+    4. Add the following secrets:
+       - OANDA_API_KEY
+       - OANDA_ACCOUNT_ID
     
     Current values:
-    - API Key: {api_key}
+    - API Key: {api_key[:5]}...{api_key[-5:] if api_key else ''}
     - Account ID: {account_id}
     """)
     st.stop()
