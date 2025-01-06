@@ -12,16 +12,27 @@ class OandaClient:
     def __init__(self):
         # Try to get credentials from Streamlit secrets first
         try:
-            self.api_key = st.secrets["OANDA_API_KEY"]
+            api_key = st.secrets["OANDA_API_KEY"]
             self.account_id = st.secrets["OANDA_ACCOUNT_ID"]
+            # Add 'Bearer ' prefix if not present
+            self.api_key = f"Bearer {api_key}" if not api_key.startswith('Bearer ') else api_key
         except Exception:
             # Fall back to environment variables
             load_dotenv()
-            self.api_key = os.getenv('OANDA_API_KEY')
+            api_key = os.getenv('OANDA_API_KEY')
             self.account_id = os.getenv('OANDA_ACCOUNT_ID')
+            # Add 'Bearer ' prefix if not present
+            self.api_key = f"Bearer {api_key}" if api_key and not api_key.startswith('Bearer ') else api_key
         
         if not self.api_key:
-            st.error("OANDA API key not found. Please check your Streamlit secrets or environment variables.")
+            st.error("""
+            OANDA API key not found. Please check your Streamlit secrets or environment variables.
+            
+            The API key should be in this format:
+            - With Bearer prefix: "Bearer 1234567890abcdef..."
+            - Without Bearer prefix: "1234567890abcdef..."
+            (The code will add 'Bearer ' prefix if needed)
+            """)
             self.api = None
             return
             
@@ -33,7 +44,7 @@ class OandaClient:
         try:
             # Add practice API URL for demo accounts
             self.api = oandapyV20.API(
-                access_token=self.api_key,
+                access_token=self.api_key.replace('Bearer ', ''),  # Remove 'Bearer ' for the API client
                 environment="practice"  # Use 'practice' for demo accounts, 'live' for real accounts
             )
             self.instrument = "EUR_USD"
@@ -48,20 +59,26 @@ class OandaClient:
             Error connecting to OANDA API: {str(e)}
             
             Please check:
-            1. Your API key is correct
+            1. Your API key is correct and properly formatted
             2. Your account ID is correct
             3. You're using the right environment (practice/live)
             4. Your API key has the necessary permissions
             
             Current settings:
             - Account ID: {self.account_id}
-            - API Key: {self.api_key[:5]}...{self.api_key[-5:] if self.api_key else ''}
+            - API Key format: {"Starts with 'Bearer'" if self.api_key and self.api_key.startswith('Bearer ') else "Missing 'Bearer' prefix"}
             
             Make sure you've added these to your Streamlit secrets:
-            ```toml
-            OANDA_API_KEY = "your-full-api-key-here"
+            ```
+            OANDA_API_KEY = "your-api-key-here"  # With or without 'Bearer ' prefix
             OANDA_ACCOUNT_ID = "your-account-id-here"
             ```
+            
+            Common issues:
+            1. API key missing 'Bearer ' prefix (will be added automatically)
+            2. Extra spaces or quotes in the secrets
+            3. API key from wrong environment (practice vs live)
+            4. Account ID from wrong environment
             """)
             self.api = None
     
