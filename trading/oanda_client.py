@@ -10,13 +10,30 @@ from dotenv import load_dotenv
 
 class OandaClient:
     def __init__(self):
+        # Debug: Show all available secrets
+        st.write("Available secrets:", list(st.secrets.keys()))
+        
         # Try to get credentials from Streamlit secrets first
         try:
-            api_key = st.secrets["OANDA_API_KEY"]
-            self.account_id = st.secrets["OANDA_ACCOUNT_ID"]
-            # Add 'Bearer ' prefix if not present
-            self.api_key = f"Bearer {api_key}" if not api_key.startswith('Bearer ') else api_key
-        except Exception:
+            # Debug: Show raw secrets access
+            st.write("Trying to access secrets directly...")
+            api_key = st.secrets.get("OANDA_API_KEY", "")
+            self.account_id = st.secrets.get("OANDA_ACCOUNT_ID", "")
+            
+            # Debug: Show what we got
+            st.write("Raw API Key:", "*" * len(api_key) if api_key else "Not found")
+            st.write("Raw Account ID:", self.account_id if self.account_id else "Not found")
+            
+            # Add 'Bearer ' prefix if not present and if we have an API key
+            if api_key:
+                self.api_key = f"Bearer {api_key}" if not api_key.startswith('Bearer ') else api_key
+                # Debug: Show final API key format
+                st.write("Final API Key format:", "Bearer *" * len(api_key.replace('Bearer ', '')))
+            else:
+                self.api_key = None
+                
+        except Exception as e:
+            st.error(f"Error accessing secrets: {str(e)}")
             # Fall back to environment variables
             load_dotenv()
             api_key = os.getenv('OANDA_API_KEY')
@@ -42,6 +59,11 @@ class OandaClient:
             return
         
         try:
+            # Debug: Show what we're using to initialize the API
+            st.write("Initializing OANDA API with:")
+            st.write("- Account ID:", self.account_id)
+            st.write("- API Key starts with:", self.api_key[:10] + "..." if self.api_key else "None")
+            
             # Add practice API URL for demo accounts
             self.api = oandapyV20.API(
                 access_token=self.api_key.replace('Bearer ', ''),  # Remove 'Bearer ' for the API client
@@ -70,8 +92,8 @@ class OandaClient:
             
             Make sure you've added these to your Streamlit secrets:
             ```
-            OANDA_API_KEY = "your-api-key-here"  # With or without 'Bearer ' prefix
-            OANDA_ACCOUNT_ID = "your-account-id-here"
+            OANDA_API_KEY = your-api-key-here
+            OANDA_ACCOUNT_ID = your-account-id-here
             ```
             
             Common issues:
