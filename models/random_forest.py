@@ -34,3 +34,39 @@ class RandomForestModel(BaseModel):
         except Exception as e:
             st.error(f"Error calculating score: {str(e)}")
             return 0.0
+    
+    def predict(self, data_point):
+        """Make prediction for a single data point"""
+        try:
+            # Extract features
+            features = np.array([data_point[col] for col in self.feature_columns]).reshape(1, -1)
+            
+            # Make prediction
+            prediction = self.model.predict(features)[0]
+            
+            return int(prediction)  # Convert numpy int to Python int
+            
+        except Exception as e:
+            st.error(f"Error making prediction: {str(e)}")
+            return 0
+    
+    def get_prediction_confidence(self, data_point):
+        """Get confidence score for prediction"""
+        try:
+            # Extract features
+            features = np.array([data_point[col] for col in self.feature_columns]).reshape(1, -1)
+            
+            # Get prediction probabilities
+            probs = self.model.predict_proba(features)[0]
+            
+            # Get confidence (max probability)
+            confidence = float(max(probs))  # Convert numpy float to Python float
+            
+            # Scale confidence to 0.5-1.0 range
+            confidence = 0.5 + (confidence * 0.5)
+            
+            return confidence
+            
+        except Exception as e:
+            st.error(f"Error calculating confidence: {str(e)}")
+            return 0.0

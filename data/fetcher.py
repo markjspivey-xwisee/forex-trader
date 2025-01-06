@@ -3,6 +3,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import streamlit as st
 import json
+import gc
 from io import StringIO
 
 class DataFetcher:
@@ -19,7 +20,7 @@ class DataFetcher:
             dates = pd.date_range(
                 end=datetime.now(),
                 periods=days * 24,  # Hourly intervals instead of minutes
-                freq='1H'
+                freq='h'  # Use 'h' instead of 'H' for hours
             )
             
             data = pd.DataFrame(index=dates)
@@ -43,6 +44,9 @@ class DataFetcher:
             volume_volatility = 0.3  # Volume volatility
             data['volume'] = np.random.lognormal(np.log(base_volume), volume_volatility, len(dates))
             
+            # Force garbage collection
+            gc.collect()
+            
             # Convert to JSON for caching
             return data.to_json(date_format='iso')
             
@@ -65,6 +69,9 @@ class DataFetcher:
             for i in range(0, len(data), self._chunk_size):
                 chunk = data.iloc[i:i + self._chunk_size].copy()
                 processed_chunks.append(chunk)
+                
+                # Force garbage collection after each chunk
+                gc.collect()
             
             # Combine chunks
             result = pd.concat(processed_chunks)
@@ -81,3 +88,4 @@ class DataFetcher:
     def clear_cache(self):
         """Clear data cache"""
         st.cache_data.clear()
+        gc.collect()  # Force garbage collection

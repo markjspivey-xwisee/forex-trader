@@ -143,8 +143,8 @@ class TechnicalIndicators:
             # Combine chunks
             result = pd.concat(processed_chunks)
             
-            # Fill any NaN values with forward fill then backward fill
-            result = result.fillna(method='ffill').fillna(method='bfill')
+            # Fill NaN values using forward fill then backward fill
+            result = result.ffill().bfill()
             
             return result
             
@@ -155,3 +155,4 @@ class TechnicalIndicators:
     def clear_cache(self):
         """Clear indicator cache"""
         st.cache_data.clear()
+        gc.collect()  # Force garbage collection
