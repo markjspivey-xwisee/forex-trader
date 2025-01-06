@@ -17,38 +17,45 @@ class OandaClient:
         try:
             # Debug: Show raw secrets access
             st.write("Trying to access secrets as dictionary...")
-            api_key = st.secrets["OANDA_API_KEY"]  # Direct dictionary access
+            raw_api_key = st.secrets["OANDA_API_KEY"]  # Direct dictionary access
             self.account_id = st.secrets["OANDA_ACCOUNT_ID"]  # Direct dictionary access
             
             # Debug: Show what we got
-            st.write("Raw API Key length:", len(api_key) if api_key else "Not found")
+            st.write("Raw API Key length:", len(raw_api_key) if raw_api_key else "Not found")
             st.write("Raw Account ID:", self.account_id if self.account_id else "Not found")
             
-            # Add 'Bearer ' prefix if not present and if we have an API key
-            if api_key:
-                self.api_key = f"Bearer {api_key}" if not api_key.startswith('Bearer ') else api_key
-                # Debug: Show final API key format
-                st.write("Final API Key format:", "Bearer *" * len(api_key.replace('Bearer ', '')))
-            else:
-                self.api_key = None
+            # Clean up API key - remove any existing Bearer prefix
+            api_key = raw_api_key.replace('Bearer ', '')
+            # Add single Bearer prefix
+            self.api_key = f"Bearer {api_key}"
+            
+            # Debug: Show final API key format
+            st.write("Final API Key format:", f"Bearer {'*' * len(api_key)}")
                 
         except Exception as e:
             st.error(f"Error accessing secrets: {str(e)}")
             # Fall back to environment variables
             load_dotenv()
-            api_key = os.getenv('OANDA_API_KEY')
+            raw_api_key = os.getenv('OANDA_API_KEY')
             self.account_id = os.getenv('OANDA_ACCOUNT_ID')
-            # Add 'Bearer ' prefix if not present
-            self.api_key = f"Bearer {api_key}" if api_key and not api_key.startswith('Bearer ') else api_key
+            
+            if raw_api_key:
+                # Clean up API key - remove any existing Bearer prefix
+                api_key = raw_api_key.replace('Bearer ', '')
+                # Add single Bearer prefix
+                self.api_key = f"Bearer {api_key}"
+            else:
+                self.api_key = None
         
         if not self.api_key:
             st.error("""
             OANDA API key not found. Please check your Streamlit secrets or environment variables.
             
-            The API key should be in this format:
-            - With Bearer prefix: "Bearer 1234567890abcdef..."
-            - Without Bearer prefix: "1234567890abcdef..."
-            (The code will add 'Bearer ' prefix if needed)
+            Add your credentials in TOML format:
+            ```toml
+            OANDA_API_KEY = "your-api-key-here"
+            OANDA_ACCOUNT_ID = "your-account-id-here"
+            ```
             """)
             self.api = None
             return
@@ -62,12 +69,11 @@ class OandaClient:
             # Debug: Show what we're using to initialize the API
             st.write("Initializing OANDA API with:")
             st.write("- Account ID:", self.account_id)
-            st.write("- API Key length:", len(self.api_key) if self.api_key else "None")
-            st.write("- API Key format:", "Bearer *" * len(api_key.replace('Bearer ', '')))
+            st.write("- API Key length:", len(self.api_key))
             
-            # Add practice API URL for demo accounts
+            # Initialize API with clean key (no Bearer prefix)
             self.api = oandapyV20.API(
-                access_token=self.api_key.replace('Bearer ', ''),  # Remove 'Bearer ' for the API client
+                access_token=self.api_key.replace('Bearer ', ''),  # Remove Bearer prefix for API client
                 environment="practice"  # Use 'practice' for demo accounts, 'live' for real accounts
             )
             self.instrument = "EUR_USD"
@@ -89,22 +95,22 @@ class OandaClient:
             
             Current settings:
             - Account ID: {self.account_id}
-            - API Key format: {"Starts with 'Bearer'" if self.api_key and self.api_key.startswith('Bearer ') else "Missing 'Bearer' prefix"}
             
-            Make sure you've added these to your Streamlit secrets:
-            ```
-            OANDA_API_KEY = your-api-key-here
-            OANDA_ACCOUNT_ID = your-account-id-here
+            Make sure you've added these to your Streamlit secrets in TOML format:
+            ```toml
+            OANDA_API_KEY = "your-api-key-here"
+            OANDA_ACCOUNT_ID = "your-account-id-here"
             ```
             
             Common issues:
-            1. API key missing 'Bearer ' prefix (will be added automatically)
-            2. Extra spaces or quotes in the secrets
+            1. Missing quotes around values in secrets
+            2. Extra spaces in the API key
             3. API key from wrong environment (practice vs live)
             4. Account ID from wrong environment
             """)
             self.api = None
-    
+
+    # Rest of the methods remain unchanged...
     def get_account_balance(self):
         """Get current account balance"""
         try:
