@@ -1,4 +1,8 @@
-import v20
+import oandapyV20
+import oandapyV20.endpoints.orders as orders
+import oandapyV20.endpoints.trades as trades
+import oandapyV20.endpoints.accounts as accounts
+from oandapyV20.exceptions import V20Error
 import streamlit as st
 import os
 from datetime import datetime
@@ -53,21 +57,18 @@ class OandaClient:
             st.write("- API Key length:", len(self.api_key))
             
             # Initialize API client
-            self.api = v20.Context(
-                hostname='api-fxpractice.oanda.com',  # Use 'api-fxtrade.oanda.com' for live
-                token=self.api_key,
-                port=443
+            self.api = oandapyV20.API(
+                access_token=self.api_key,
+                environment="practice"  # Use 'practice' for demo accounts, 'live' for real accounts
             )
             self.instrument = "EUR_USD"
             
             # Test connection
-            response = self.api.account.summary(self.account_id)
-            if response.status != 200:
-                raise Exception(f"Status {response.status}: {response.body}")
-                
+            r = accounts.AccountSummary(self.account_id)
+            self.api.request(r)
             st.success("Successfully connected to OANDA API")
             
-        except Exception as e:
+        except V20Error as e:
             st.error(f"""
             Error connecting to OANDA API: {str(e)}
             
@@ -96,13 +97,11 @@ class OandaClient:
                 st.error("OANDA API not initialized")
                 return None
                 
-            response = self.api.account.summary(self.account_id)
-            if response.status != 200:
-                raise Exception(f"Status {response.status}: {response.body}")
-                
-            return float(response.body['account']['balance'])
+            r = accounts.AccountSummary(self.account_id)
+            response = self.api.request(r)
+            return float(response['account']['balance'])
             
-        except Exception as e:
+        except V20Error as e:
             st.error(f"Error getting account balance: {str(e)}")
             return None
     
@@ -113,24 +112,22 @@ class OandaClient:
                 st.error("OANDA API not initialized")
                 return []
                 
-            response = self.api.trade.list_open(self.account_id)
-            if response.status != 200:
-                raise Exception(f"Status {response.status}: {response.body}")
-                
+            r = trades.OpenTrades(self.account_id)
+            response = self.api.request(r)
             positions = []
-            for trade in response.body['trades']:
-                if trade.instrument == self.instrument:
+            for trade in response['trades']:
+                if trade['instrument'] == self.instrument:
                     positions.append({
-                        'id': trade.id,
-                        'type': 'long' if float(trade.initialUnits) > 0 else 'short',
-                        'units': abs(float(trade.initialUnits)),
-                        'entry_price': float(trade.price),
-                        'unrealized_pnl': float(trade.unrealizedPL),
-                        'entry_time': datetime.strptime(trade.openTime.split('.')[0], '%Y-%m-%dT%H:%M:%S')
+                        'id': trade['id'],
+                        'type': 'long' if float(trade['initialUnits']) > 0 else 'short',
+                        'units': abs(float(trade['initialUnits'])),
+                        'entry_price': float(trade['price']),
+                        'unrealized_pnl': float(trade['unrealizedPL']),
+                        'entry_time': datetime.strptime(trade['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
                     })
             return positions
             
-        except Exception as e:
+        except V20Error as e:
             st.error(f"Error getting open positions: {str(e)}")
             return []
     
@@ -141,26 +138,24 @@ class OandaClient:
                 st.error("OANDA API not initialized")
                 return []
                 
-            response = self.api.trade.list(self.account_id)
-            if response.status != 200:
-                raise Exception(f"Status {response.status}: {response.body}")
-                
+            r = trades.TradesList(self.account_id)
+            response = self.api.request(r)
             trades_list = []
-            for trade in response.body['trades']:
-                if trade.instrument == self.instrument and trade.state == 'CLOSED':
+            for trade in response['trades']:
+                if trade['instrument'] == self.instrument and trade['state'] == 'CLOSED':
                     trades_list.append({
-                        'id': trade.id,
-                        'type': 'long' if float(trade.initialUnits) > 0 else 'short',
-                        'units': abs(float(trade.initialUnits)),
-                        'entry_price': float(trade.price),
-                        'exit_price': float(trade.averageClosePrice),
-                        'pnl': float(trade.realizedPL),
-                        'entry_time': datetime.strptime(trade.openTime.split('.')[0], '%Y-%m-%dT%H:%M:%S'),
-                        'exit_time': datetime.strptime(trade.closeTime.split('.')[0], '%Y-%m-%dT%H:%M:%S')
+                        'id': trade['id'],
+                        'type': 'long' if float(trade['initialUnits']) > 0 else 'short',
+                        'units': abs(float(trade['initialUnits'])),
+                        'entry_price': float(trade['price']),
+                        'exit_price': float(trade['averageClosePrice']),
+                        'pnl': float(trade['realizedPL']),
+                        'entry_time': datetime.strptime(trade['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S'),
+                        'exit_time': datetime.strptime(trade['closeTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
                     })
             return trades_list
             
-        except Exception as e:
+        except V20Error as e:
             st.error(f"Error getting trade history: {str(e)}")
             return []
     
@@ -171,24 +166,25 @@ class OandaClient:
                 st.error("OANDA API not initialized")
                 return False
                 
-            order = {
-                "type": "MARKET",
-                "instrument": self.instrument,
-                "units": str(units) if order_type == 'long' else str(-units),
-                "timeInForce": "FOK",
-                "positionFill": "DEFAULT"
+            data = {
+                "order": {
+                    "type": "MARKET",
+                    "instrument": self.instrument,
+                    "units": str(units) if order_type == 'long' else str(-units),
+                    "timeInForce": "FOK",
+                    "positionFill": "DEFAULT"
+                }
             }
             
-            response = self.api.order.create(self.account_id, order)
-            if response.status != 201:
-                raise Exception(f"Status {response.status}: {response.body}")
-                
-            if hasattr(response.body, 'orderFillTransaction'):
-                st.success(f"Order filled: {order_type.upper()} {units} units at {response.body.orderFillTransaction.price}")
+            r = orders.OrderCreate(self.account_id, data=data)
+            response = self.api.request(r)
+            
+            if response['orderFillTransaction']['type'] == 'ORDER_FILL':
+                st.success(f"Order filled: {order_type.upper()} {units} units at {response['orderFillTransaction']['price']}")
                 return True
             return False
             
-        except Exception as e:
+        except V20Error as e:
             st.error(f"""
             Error placing order: {str(e)}
             
@@ -206,16 +202,15 @@ class OandaClient:
                 st.error("OANDA API not initialized")
                 return False
                 
-            response = self.api.trade.close(self.account_id, trade_id)
-            if response.status != 200:
-                raise Exception(f"Status {response.status}: {response.body}")
-                
-            if hasattr(response.body, 'orderFillTransaction'):
-                st.success(f"Position closed at {response.body.orderFillTransaction.price}")
+            r = trades.TradeClose(self.account_id, trade_id)
+            response = self.api.request(r)
+            
+            if response['orderFillTransaction']['type'] == 'ORDER_FILL':
+                st.success(f"Position closed at {response['orderFillTransaction']['price']}")
                 return True
             return False
             
-        except Exception as e:
+        except V20Error as e:
             st.error(f"""
             Error closing position: {str(e)}
             
