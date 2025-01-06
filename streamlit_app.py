@@ -58,9 +58,9 @@ st.set_page_config(
 
 # Initialize session state
 if 'data_fetcher' not in st.session_state:
-    st.session_state.data_fetcher = DataFetcher()
+    st.session_state.data_fetcher = DataFetcher(chunk_size=500)  # Reduced chunk size
 if 'indicators' not in st.session_state:
-    st.session_state.indicators = TechnicalIndicators()
+    st.session_state.indicators = TechnicalIndicators(chunk_size=500)  # Reduced chunk size
 if 'models' not in st.session_state:
     st.session_state.models = {
         'random_forest': RandomForestModel(),
@@ -128,7 +128,7 @@ def plot_price_and_signals(data, signals=None):
             title='EUR/USD Price Chart',
             xaxis_title='Date',
             yaxis_title='Price',
-            height=800
+            height=600  # Reduced height
         )
         
         return fig
@@ -153,7 +153,7 @@ def plot_equity_curve(equity_curve):
             title='Portfolio Value Over Time',
             xaxis_title='Date',
             yaxis_title='Value ($)',
-            height=400
+            height=300  # Reduced height
         )
         
         return fig
@@ -245,8 +245,8 @@ def main():
         # Sidebar controls
         with st.sidebar:
             st.header('Settings')
-            days = st.slider('Data Range (Days)', min_value=30, max_value=180, value=60)
-            chunk_size = st.slider('Processing Chunk Size', min_value=100, max_value=5000, value=1000, step=100)
+            days = st.slider('Data Range (Days)', min_value=7, max_value=60, value=14)  # Reduced range
+            chunk_size = st.slider('Processing Chunk Size', min_value=100, max_value=1000, value=500, step=100)  # Reduced max
             st.session_state.data_fetcher._chunk_size = chunk_size
             st.session_state.indicators._chunk_size = chunk_size
         

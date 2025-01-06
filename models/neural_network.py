@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 import streamlit as st
 import gc
@@ -22,20 +22,21 @@ class NeuralNetworkModel(BaseModel):
             tf.keras.backend.clear_session()
             gc.collect()
             
-            # Build model
+            # Build model with Input layer
             self.model = Sequential([
-                Dense(64, activation='relu', input_dim=len(self.feature_columns)),
-                Dropout(0.2),
+                Input(shape=(len(self.feature_columns),)),  # Explicit input shape
+                Dense(128, activation='relu'),
+                Dropout(0.3),
+                Dense(64, activation='relu'),
+                Dropout(0.3),
                 Dense(32, activation='relu'),
-                Dropout(0.2),
-                Dense(16, activation='relu'),
-                Dense(1, activation='tanh')  # Output between -1 and 1
+                Dense(1, activation='sigmoid')  # Binary classification output
             ])
             
-            # Compile model
+            # Compile model with binary crossentropy
             self.model.compile(
                 optimizer=Adam(learning_rate=0.001),
-                loss='mse',
+                loss='binary_crossentropy',
                 metrics=['accuracy']
             )
             
@@ -46,17 +47,17 @@ class NeuralNetworkModel(BaseModel):
     def _train_model(self, X_train, y_train):
         """Train the neural network model"""
         try:
-            # Convert labels to float32
-            y_train = y_train.astype(np.float32)
+            # Convert labels from -1/1 to 0/1 for binary crossentropy
+            y_train_binary = (y_train + 1) / 2
             
             # Train model
             history = self.model.fit(
                 X_train,
-                y_train,
+                y_train_binary,
                 epochs=50,
                 batch_size=32,
                 validation_split=0.2,
-                verbose=0,
+                verbose=1,  # Show progress
                 callbacks=[
                     tf.keras.callbacks.EarlyStopping(
                         monitor='val_loss',
@@ -69,6 +70,8 @@ class NeuralNetworkModel(BaseModel):
             # Force garbage collection
             gc.collect()
             
+            return history
+            
         except Exception as e:
             st.error(f"Error training neural network: {str(e)}")
             raise
@@ -79,14 +82,17 @@ class NeuralNetworkModel(BaseModel):
             if self.model is None:
                 return 0.0
             
+            # Convert labels from -1/1 to 0/1 for binary crossentropy
+            y_binary = (y + 1) / 2
+            
             # Get predictions
             predictions = self.model.predict(X, verbose=0)
             
             # Convert predictions to binary signals
-            predicted_signals = np.where(predictions > 0.5, 1, np.where(predictions < -0.5, -1, 0))
+            predicted_signals = np.where(predictions > 0.5, 1, 0)
             
             # Calculate accuracy
-            accuracy = np.mean(predicted_signals.flatten() == y)
+            accuracy = np.mean(predicted_signals.flatten() == y_binary)
             
             return float(accuracy)
             
@@ -103,8 +109,8 @@ class NeuralNetworkModel(BaseModel):
             # Make prediction
             prediction = self.model.predict(features, verbose=0)[0][0]
             
-            # Convert to binary signal
-            signal = 1 if prediction > 0.5 else -1 if prediction < -0.5 else 0
+            # Convert to -1/0/1 signal
+            signal = 1 if prediction > 0.66 else -1 if prediction < 0.33 else 0
             
             return signal
             
@@ -119,10 +125,16 @@ class NeuralNetworkModel(BaseModel):
             features = np.array([data_point[col] for col in self.feature_columns]).reshape(1, -1)
             
             # Get raw prediction
-            prediction = abs(self.model.predict(features, verbose=0)[0][0])
+            prediction = self.model.predict(features, verbose=0)[0][0]
             
             # Convert to confidence score (0.5 to 1.0)
-            confidence = 0.5 + (prediction * 0.5)
+            # Map 0-0.33 and 0.66-1 ranges to 0.5-1.0
+            if prediction < 0.33:
+                confidence = 0.5 + (0.33 - prediction) * 1.5
+            elif prediction > 0.66:
+                confidence = 0.5 + (prediction - 0.66) * 1.5
+            else:
+                confidence = 0.5
             
             return float(confidence)
             

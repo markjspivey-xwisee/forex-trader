@@ -6,7 +6,7 @@ import json
 from io import StringIO
 
 class DataFetcher:
-    def __init__(self, chunk_size=1000):
+    def __init__(self, chunk_size=500):  # Reduced default chunk size
         self._chunk_size = chunk_size
     
     @staticmethod
@@ -18,8 +18,8 @@ class DataFetcher:
             # In production, this would fetch from OANDA API
             dates = pd.date_range(
                 end=datetime.now(),
-                periods=days * 24 * 60,  # 1-minute intervals
-                freq='1min'
+                periods=days * 24,  # Hourly intervals instead of minutes
+                freq='1H'
             )
             
             data = pd.DataFrame(index=dates)
@@ -59,7 +59,7 @@ class DataFetcher:
                 return None
             
             # Process data in chunks
-            data = pd.read_json(StringIO(data_json))  # Use StringIO to wrap JSON string
+            data = pd.read_json(StringIO(data_json))
             processed_chunks = []
             
             for i in range(0, len(data), self._chunk_size):
@@ -67,7 +67,12 @@ class DataFetcher:
                 processed_chunks.append(chunk)
             
             # Combine chunks
-            return pd.concat(processed_chunks)
+            result = pd.concat(processed_chunks)
+            
+            # Force garbage collection
+            gc.collect()
+            
+            return result
             
         except Exception as e:
             st.error(f"Error processing data: {str(e)}")
