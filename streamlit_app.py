@@ -14,6 +14,7 @@ from data.indicators import TechnicalIndicators
 from models.random_forest import RandomForestModel
 from models.neural_network import NeuralNetworkModel
 from backtesting.backtester import Backtester
+from trading.oanda_client import OandaClient
 
 # Configure Streamlit for better performance
 st.set_page_config(
@@ -39,14 +40,15 @@ if 'models_trained' not in st.session_state:
         'random_forest': False,
         'neural_network': False
     }
+if 'oanda' not in st.session_state:
+    st.session_state.oanda = OandaClient()
 if 'live_trading' not in st.session_state:
     st.session_state.live_trading = {
         'active': False,
         'model': None,
-        'position': None,
-        'trades': [],
-        'balance': 10000.0,
-        'start_time': None
+        'start_time': None,
+        'last_signal': None,
+        'last_signal_time': None
     }
 
 @st.cache_data(ttl=300, max_entries=10)
@@ -157,56 +159,39 @@ def train_all_models(data):
 def execute_trade(signal, confidence, current_price):
     """Execute a trade based on the signal"""
     try:
+        # Get current positions
+        positions = st.session_state.oanda.get_open_positions()
+        
+        # Get account balance
+        balance = st.session_state.oanda.get_account_balance()
+        if balance is None:
+            st.error("Could not get account balance")
+            return
+        
         position_size = 0.1  # 10% of balance per trade
+        units = int((balance * position_size) / current_price)
         
         # Check if we have an open position
-        if st.session_state.live_trading['position'] is not None:
-            position = st.session_state.live_trading['position']
+        if positions:
+            position = positions[0]  # Assume one position at a time
             
             # Check if we should close the position
             if (position['type'] == 'long' and signal < 0) or \
                (position['type'] == 'short' and signal > 0):
-                # Calculate profit/loss
-                if position['type'] == 'long':
-                    pnl = (current_price - position['entry_price']) * position['size']
-                else:  # short
-                    pnl = (position['entry_price'] - current_price) * position['size']
-                
-                # Update balance
-                st.session_state.live_trading['balance'] += float(pnl)
-                
-                # Record trade
-                trade = {
-                    'type': position['type'],
-                    'entry_time': position['entry_time'],
-                    'exit_time': datetime.now(),
-                    'entry_price': position['entry_price'],
-                    'exit_price': current_price,
-                    'pnl': pnl,
-                    'return': pnl / (position['entry_price'] * position['size'])
-                }
-                st.session_state.live_trading['trades'].append(trade)
-                
                 # Close position
-                st.session_state.live_trading['position'] = None
-                
-                st.success(f"Closed {position['type']} position with P&L: ${pnl:.2f}")
+                if st.session_state.oanda.close_position(position['id']):
+                    st.success(f"Closed {position['type']} position")
         
         # Check if we should open a new position
         elif signal != 0 and confidence >= 0.6:  # Only trade with sufficient confidence
-            # Calculate position size
-            size = (st.session_state.live_trading['balance'] * position_size) / current_price
-            
             # Open position
-            position = {
-                'type': 'long' if signal > 0 else 'short',
-                'entry_price': current_price,
-                'size': float(size),
-                'entry_time': datetime.now()
-            }
-            st.session_state.live_trading['position'] = position
+            order_type = 'long' if signal > 0 else 'short'
+            if st.session_state.oanda.place_order(order_type, units, current_price):
+                st.success(f"Opened {order_type} position with {units} units")
             
-            st.success(f"Opened {position['type']} position at ${current_price:.5f}")
+            # Update last signal
+            st.session_state.live_trading['last_signal'] = signal
+            st.session_state.live_trading['last_signal_time'] = datetime.now()
     
     except Exception as e:
         st.error(f"Error executing trade: {str(e)}")
@@ -306,23 +291,27 @@ def main():
                 if st.button('Stop Live Trading'):
                     st.session_state.live_trading['active'] = False
                     st.session_state.live_trading['model'] = None
+                    st.session_state.oanda.close_all_positions()  # Close all positions when stopping
                     st.warning("Live trading stopped")
         
         with col3:
-            st.metric(
-                'Trading Balance',
-                f"${st.session_state.live_trading['balance']:.2f}",
-                f"{((st.session_state.live_trading['balance'] - 10000) / 10000):.2%}"
-            )
+            balance = st.session_state.oanda.get_account_balance()
+            if balance is not None:
+                st.metric('Account Balance', f"${balance:.2f}")
         
         # Live trading status
         if st.session_state.live_trading['active']:
+            # Get current positions and trade history
+            positions = st.session_state.oanda.get_open_positions()
+            trades = st.session_state.oanda.get_trade_history()
+            
             st.info(f"""
             Live Trading Status:
             - Model: {st.session_state.live_trading['model']}
             - Running since: {st.session_state.live_trading['start_time'].strftime('%Y-%m-%d %H:%M:%S')}
-            - Position: {st.session_state.live_trading['position']['type'] if st.session_state.live_trading['position'] else 'None'}
-            - Total Trades: {len(st.session_state.live_trading['trades'])}
+            - Open Positions: {len(positions)}
+            - Total Trades: {len(trades)}
+            - Last Signal: {st.session_state.live_trading['last_signal']} at {st.session_state.live_trading['last_signal_time'].strftime('%H:%M:%S') if st.session_state.live_trading['last_signal_time'] else 'N/A'}
             """)
             
             # Get latest signal
@@ -333,10 +322,16 @@ def main():
             # Execute trade based on signal
             execute_trade(signal, confidence, current_price)
             
+            # Display positions
+            if positions:
+                st.write("Open Positions:")
+                positions_df = pd.DataFrame(positions)
+                st.dataframe(positions_df)
+            
             # Display trade history
-            if st.session_state.live_trading['trades']:
+            if trades:
                 st.write("Trade History:")
-                trades_df = pd.DataFrame(st.session_state.live_trading['trades'])
+                trades_df = pd.DataFrame(trades)
                 st.dataframe(trades_df)
         
         # Trading signals
@@ -414,6 +409,7 @@ def main():
             "Data Fetcher": "Connected",
             "Technical Indicators": "Ready",
             "Trading Engine": "Active" if st.session_state.live_trading['active'] else "Inactive",
+            "OANDA Connection": "Connected" if st.session_state.oanda.api else "Not Connected",
             "Models": {
                 name: "Trained" if trained else "Not Trained"
                 for name, trained in st.session_state.models_trained.items()
