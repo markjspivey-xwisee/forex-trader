@@ -60,10 +60,14 @@ if 'api_credentials' not in st.session_state:
 
 if 'data_fetcher' not in st.session_state:
     api_key, account_id = st.session_state.api_credentials
-    st.session_state.data_fetcher = DataFetcher(chunk_size=500)  # Reduced chunk size
+    st.session_state.data_fetcher = DataFetcher(
+        chunk_size=500,
+        api_key=api_key,
+        account_id=account_id
+    )
     
 if 'indicators' not in st.session_state:
-    st.session_state.indicators = TechnicalIndicators(chunk_size=500)  # Reduced chunk size
+    st.session_state.indicators = TechnicalIndicators(chunk_size=500)
 if 'models' not in st.session_state:
     st.session_state.models = {
         'random_forest': RandomForestModel(),
@@ -78,7 +82,10 @@ if 'models_trained' not in st.session_state:
     }
 if 'oanda' not in st.session_state:
     api_key, account_id = st.session_state.api_credentials
-    st.session_state.oanda = OandaClient()
+    st.session_state.oanda = OandaClient(
+        api_key=api_key,
+        account_id=account_id
+    )
 if 'live_trading' not in st.session_state:
     st.session_state.live_trading = {
         'active': False,
@@ -473,8 +480,15 @@ if __name__ == '__main__':
     
     # Initialize components with credentials
     if 'data_fetcher' not in st.session_state:
-        st.session_state.data_fetcher = DataFetcher(chunk_size=500)
+        st.session_state.data_fetcher = DataFetcher(
+            chunk_size=500,
+            api_key=api_key,
+            account_id=account_id
+        )
     if 'oanda' not in st.session_state:
-        st.session_state.oanda = OandaClient()
+        st.session_state.oanda = OandaClient(
+            api_key=api_key,
+            account_id=account_id
+        )
     
     main()

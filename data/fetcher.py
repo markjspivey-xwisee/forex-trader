@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 
 class DataFetcher:
-    def __init__(self, chunk_size=500):  # Reduced default chunk size
+    def __init__(self, chunk_size=500, api_key=None, account_id=None):  # Added credentials parameters
         self._chunk_size = chunk_size
         self._api = None
         self._instrument = "EUR_USD"
@@ -19,34 +19,9 @@ class DataFetcher:
         # Load environment variables first
         load_dotenv()
         
-        # Debug: Show environment variables
-        env_api_key = os.getenv('OANDA_API_KEY')
-        env_account_id = os.getenv('OANDA_ACCOUNT_ID')
-        st.write("DataFetcher - Environment variables:")
-        st.write("- API Key from env:", "*" * len(env_api_key) if env_api_key else "Not found")
-        st.write("- Account ID from env:", env_account_id if env_account_id else "Not found")
-        
-        # Try to get credentials from Streamlit secrets first
-        try:
-            st.write("DataFetcher - Trying to access secrets...")
-            secrets_api_key = st.secrets["OANDA_API_KEY"]
-            secrets_account_id = st.secrets["OANDA_ACCOUNT_ID"]
-            
-            # Debug: Show what we got from secrets
-            st.write("DataFetcher - Secrets values:")
-            st.write("- API Key from secrets:", "*" * len(secrets_api_key) if secrets_api_key else "Not found")
-            st.write("- Account ID from secrets:", secrets_account_id if secrets_account_id else "Not found")
-            
-            # Use secrets if available
-            self.api_key = secrets_api_key
-            self.account_id = secrets_account_id
-                
-        except Exception as e:
-            st.error(f"DataFetcher - Error accessing secrets: {str(e)}")
-            # Fall back to environment variables
-            self.api_key = env_api_key
-            self.account_id = env_account_id
-            st.info("DataFetcher - Falling back to environment variables")
+        # Use provided credentials or fall back to environment variables
+        self.api_key = api_key or os.getenv('OANDA_API_KEY')
+        self.account_id = account_id or os.getenv('OANDA_ACCOUNT_ID')
         
         # Debug: Show final values being used
         st.write("DataFetcher - Final values being used:")
