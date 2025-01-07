@@ -34,16 +34,32 @@ st.set_page_config(
     initial_sidebar_state='collapsed'
 )
 
-# Initialize session state
-if 'data_fetcher' not in st.session_state:
-    # Try to get credentials from Streamlit secrets first, then fall back to environment variables
+# Get API credentials
+def get_api_credentials():
+    """Get API credentials from secrets or environment variables"""
     try:
         api_key = st.secrets["OANDA_API_KEY"]
         account_id = st.secrets["OANDA_ACCOUNT_ID"]
-    except Exception:
+        st.sidebar.success("OANDA API credentials loaded from secrets")
+    except Exception as e:
         api_key = os.getenv('OANDA_API_KEY')
         account_id = os.getenv('OANDA_ACCOUNT_ID')
-        
+        if api_key and account_id:
+            st.sidebar.info("Using OANDA API credentials from environment variables")
+            st.sidebar.write(f"Account ID: {account_id}")
+            st.sidebar.write(f"API Key length: {len(api_key)}")
+        else:
+            st.sidebar.warning("Using simulated data (no API credentials)")
+            api_key = None
+            account_id = None
+    return api_key, account_id
+
+# Initialize session state
+if 'api_credentials' not in st.session_state:
+    st.session_state.api_credentials = get_api_credentials()
+
+if 'data_fetcher' not in st.session_state:
+    api_key, account_id = st.session_state.api_credentials
     st.session_state.data_fetcher = DataFetcher(chunk_size=500)  # Reduced chunk size
     
 if 'indicators' not in st.session_state:
@@ -61,6 +77,7 @@ if 'models_trained' not in st.session_state:
         'neural_network': False
     }
 if 'oanda' not in st.session_state:
+    api_key, account_id = st.session_state.api_credentials
     st.session_state.oanda = OandaClient()
 if 'live_trading' not in st.session_state:
     st.session_state.live_trading = {
@@ -451,19 +468,13 @@ def main():
         """)
 
 if __name__ == '__main__':
-    # Check API credentials
-    try:
-        api_key = st.secrets["OANDA_API_KEY"]
-        account_id = st.secrets["OANDA_ACCOUNT_ID"]
-        st.sidebar.success("OANDA API credentials loaded from secrets")
-    except Exception as e:
-        api_key = os.getenv('OANDA_API_KEY')
-        account_id = os.getenv('OANDA_ACCOUNT_ID')
-        if api_key and account_id:
-            st.sidebar.info("Using OANDA API credentials from environment variables")
-            st.sidebar.write(f"Account ID: {account_id}")
-            st.sidebar.write(f"API Key length: {len(api_key)}")
-        else:
-            st.sidebar.warning("Using simulated data (no API credentials)")
+    # Get API credentials
+    api_key, account_id = get_api_credentials()
+    
+    # Initialize components with credentials
+    if 'data_fetcher' not in st.session_state:
+        st.session_state.data_fetcher = DataFetcher(chunk_size=500)
+    if 'oanda' not in st.session_state:
+        st.session_state.oanda = OandaClient()
     
     main()
