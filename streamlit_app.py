@@ -21,32 +21,6 @@ from dotenv import load_dotenv
 env_path = Path(current_dir) / '.env'
 load_dotenv(dotenv_path=env_path)
 
-# Try to get credentials from Streamlit secrets first, then fall back to environment variables
-try:
-    api_key = st.secrets["OANDA_API_KEY"]
-    account_id = st.secrets["OANDA_ACCOUNT_ID"]
-except Exception:
-    api_key = os.getenv('OANDA_API_KEY')
-    account_id = os.getenv('OANDA_ACCOUNT_ID')
-
-if not api_key or not account_id:
-    st.error(f"""
-    OANDA API credentials not found!
-    
-    Please set up your OANDA credentials in Streamlit's secrets management:
-    1. Go to your Streamlit dashboard
-    2. Select your app
-    3. Go to Settings > Secrets
-    4. Add the following secrets:
-       - OANDA_API_KEY
-       - OANDA_ACCOUNT_ID
-    
-    Current values:
-    - API Key: {api_key[:5]}...{api_key[-5:] if api_key else ''}
-    - Account ID: {account_id}
-    """)
-    st.stop()
-
 # Import local modules
 from data import DataFetcher, TechnicalIndicators
 from models import RandomForestModel, NeuralNetworkModel
@@ -468,4 +442,24 @@ def main():
         """)
 
 if __name__ == '__main__':
+    # Check API credentials
+    try:
+        api_key = st.secrets["OANDA_API_KEY"]
+        account_id = st.secrets["OANDA_ACCOUNT_ID"]
+        st.sidebar.success("OANDA API credentials loaded")
+    except Exception as e:
+        st.sidebar.error("""
+        OANDA API credentials not found!
+        
+        Please set up your OANDA credentials in Streamlit's secrets:
+        ```toml
+        OANDA_API_KEY = "your-api-key-here"
+        OANDA_ACCOUNT_ID = "your-account-id-here"
+        ```
+        """)
+        if os.getenv('OANDA_API_KEY') and os.getenv('OANDA_ACCOUNT_ID'):
+            st.sidebar.info("Using credentials from environment variables")
+        else:
+            st.sidebar.warning("Using simulated data (no API credentials)")
+    
     main()
