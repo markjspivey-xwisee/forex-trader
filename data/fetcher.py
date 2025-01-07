@@ -7,6 +7,8 @@ import gc
 from io import StringIO
 import oandapyV20
 import oandapyV20.endpoints.instruments as instruments
+from dotenv import load_dotenv
+import os
 
 class DataFetcher:
     def __init__(self, chunk_size=500):  # Reduced default chunk size
@@ -14,16 +16,51 @@ class DataFetcher:
         self._api = None
         self._instrument = "EUR_USD"
         
+        # Load environment variables first
+        load_dotenv()
+        
+        # Debug: Show environment variables
+        env_api_key = os.getenv('OANDA_API_KEY')
+        env_account_id = os.getenv('OANDA_ACCOUNT_ID')
+        st.write("DataFetcher - Environment variables:")
+        st.write("- API Key from env:", "*" * len(env_api_key) if env_api_key else "Not found")
+        st.write("- Account ID from env:", env_account_id if env_account_id else "Not found")
+        
         # Try to get credentials from Streamlit secrets first
         try:
-            self.api_key = st.secrets["OANDA_API_KEY"]
-            # Initialize API client
-            self._api = oandapyV20.API(
-                access_token=self.api_key,
-                environment="practice"  # Use 'practice' for demo accounts
-            )
+            st.write("DataFetcher - Trying to access secrets...")
+            secrets_api_key = st.secrets["OANDA_API_KEY"]
+            
+            # Debug: Show what we got from secrets
+            st.write("DataFetcher - Secrets values:")
+            st.write("- API Key from secrets:", "*" * len(secrets_api_key) if secrets_api_key else "Not found")
+            
+            # Use secrets if available
+            self.api_key = secrets_api_key
+                
         except Exception as e:
-            st.warning("Using simulated data (OANDA API credentials not found)")
+            st.error(f"DataFetcher - Error accessing secrets: {str(e)}")
+            # Fall back to environment variables
+            self.api_key = env_api_key
+            st.info("DataFetcher - Falling back to environment variables")
+        
+        # Debug: Show final values being used
+        st.write("DataFetcher - Final values being used:")
+        st.write("- API Key length:", len(self.api_key) if self.api_key else "Not found")
+        
+        if self.api_key:
+            try:
+                # Initialize API client
+                self._api = oandapyV20.API(
+                    access_token=self.api_key,
+                    environment="practice"  # Use 'practice' for demo accounts
+                )
+                st.success("DataFetcher - Successfully initialized OANDA API")
+            except Exception as e:
+                st.error(f"DataFetcher - Error initializing OANDA API: {str(e)}")
+                st.warning("DataFetcher - Will use simulated data")
+        else:
+            st.warning("DataFetcher - Using simulated data (OANDA API credentials not found)")
     
     @staticmethod
     def _generate_sample_data(days):
@@ -63,9 +100,11 @@ class DataFetcher:
         try:
             if self._api is None:
                 # Use simulated data if API is not available
+                st.info("Using simulated data (no API connection)")
                 data = self._generate_sample_data(days)
             else:
                 # Fetch real data from OANDA
+                st.info("Fetching real data from OANDA API")
                 params = {
                     "count": days * 24,  # Hourly candles
                     "granularity": "H1",  # 1-hour candles
@@ -94,6 +133,7 @@ class DataFetcher:
                 
                 data = pd.DataFrame(data)
                 data.set_index('time', inplace=True)
+                st.success("Successfully fetched real market data")
             
             # Force garbage collection
             gc.collect()
@@ -104,6 +144,7 @@ class DataFetcher:
         except Exception as e:
             st.error(f"Error fetching data: {str(e)}")
             # Fall back to simulated data
+            st.warning("Falling back to simulated data")
             data = self._generate_sample_data(days)
             return data.to_json(date_format='iso')
     

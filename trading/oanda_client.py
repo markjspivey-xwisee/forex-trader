@@ -10,6 +10,16 @@ from dotenv import load_dotenv
 
 class OandaClient:
     def __init__(self):
+        # Load environment variables first
+        load_dotenv()
+        
+        # Debug: Show environment variables
+        env_api_key = os.getenv('OANDA_API_KEY')
+        env_account_id = os.getenv('OANDA_ACCOUNT_ID')
+        st.write("Environment variables:")
+        st.write("- API Key from env:", "*" * len(env_api_key) if env_api_key else "Not found")
+        st.write("- Account ID from env:", env_account_id if env_account_id else "Not found")
+        
         # Debug: Show all available secrets
         st.write("Available secrets:", list(st.secrets.keys()))
         
@@ -17,19 +27,29 @@ class OandaClient:
         try:
             # Debug: Show raw secrets access
             st.write("Trying to access secrets as dictionary...")
-            self.api_key = st.secrets["OANDA_API_KEY"]  # Direct dictionary access
-            self.account_id = st.secrets["OANDA_ACCOUNT_ID"]  # Direct dictionary access
+            secrets_api_key = st.secrets["OANDA_API_KEY"]
+            secrets_account_id = st.secrets["OANDA_ACCOUNT_ID"]
             
-            # Debug: Show what we got
-            st.write("Raw API Key length:", len(self.api_key) if self.api_key else "Not found")
-            st.write("Raw Account ID:", self.account_id if self.account_id else "Not found")
+            # Debug: Show what we got from secrets
+            st.write("Secrets values:")
+            st.write("- API Key from secrets:", "*" * len(secrets_api_key) if secrets_api_key else "Not found")
+            st.write("- Account ID from secrets:", secrets_account_id if secrets_account_id else "Not found")
+            
+            # Use secrets if available
+            self.api_key = secrets_api_key
+            self.account_id = secrets_account_id
                 
         except Exception as e:
             st.error(f"Error accessing secrets: {str(e)}")
             # Fall back to environment variables
-            load_dotenv()
-            self.api_key = os.getenv('OANDA_API_KEY')
-            self.account_id = os.getenv('OANDA_ACCOUNT_ID')
+            self.api_key = env_api_key
+            self.account_id = env_account_id
+            st.info("Falling back to environment variables")
+        
+        # Debug: Show final values being used
+        st.write("Final values being used:")
+        st.write("- API Key length:", len(self.api_key) if self.api_key else "Not found")
+        st.write("- Account ID:", self.account_id if self.account_id else "Not found")
         
         if not self.api_key:
             st.error("""
@@ -44,11 +64,6 @@ class OandaClient:
             return
         
         try:
-            # Debug: Show what we're using to initialize the API
-            st.write("Initializing OANDA API with:")
-            st.write("- Account ID:", self.account_id)
-            st.write("- API Key length:", len(self.api_key))
-            
             # Initialize API client with practice account URL
             self.api = oandapyV20.API(
                 access_token=self.api_key,
