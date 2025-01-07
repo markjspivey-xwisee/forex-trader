@@ -16,6 +16,11 @@ class DataFetcher:
         self._api = None
         self._instrument = "EUR_USD"
         
+        # Debug: Print received parameters
+        st.write("DataFetcher - Received parameters:")
+        st.write("- API Key:", "*" * len(api_key) if api_key else "Not found")
+        st.write("- Account ID:", account_id if account_id else "Not found")
+        
         # Load environment variables first
         load_dotenv()
         

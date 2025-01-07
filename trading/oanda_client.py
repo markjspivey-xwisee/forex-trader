@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 
 class OandaClient:
     def __init__(self, api_key=None, account_id=None):
+        # Debug: Print received parameters
+        st.write("OandaClient - Received parameters:")
+        st.write("- API Key:", "*" * len(api_key) if api_key else "Not found")
+        st.write("- Account ID:", account_id if account_id else "Not found")
+        
         # Load environment variables first
         load_dotenv()
         
