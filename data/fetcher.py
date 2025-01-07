@@ -30,23 +30,28 @@ class DataFetcher:
         try:
             st.write("DataFetcher - Trying to access secrets...")
             secrets_api_key = st.secrets["OANDA_API_KEY"]
+            secrets_account_id = st.secrets["OANDA_ACCOUNT_ID"]
             
             # Debug: Show what we got from secrets
             st.write("DataFetcher - Secrets values:")
             st.write("- API Key from secrets:", "*" * len(secrets_api_key) if secrets_api_key else "Not found")
+            st.write("- Account ID from secrets:", secrets_account_id if secrets_account_id else "Not found")
             
             # Use secrets if available
             self.api_key = secrets_api_key
+            self.account_id = secrets_account_id
                 
         except Exception as e:
             st.error(f"DataFetcher - Error accessing secrets: {str(e)}")
             # Fall back to environment variables
             self.api_key = env_api_key
+            self.account_id = env_account_id
             st.info("DataFetcher - Falling back to environment variables")
         
         # Debug: Show final values being used
         st.write("DataFetcher - Final values being used:")
         st.write("- API Key length:", len(self.api_key) if self.api_key else "Not found")
+        st.write("- Account ID:", self.account_id if self.account_id else "Not found")
         
         if self.api_key:
             try:
