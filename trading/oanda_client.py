@@ -34,13 +34,6 @@ class OandaClient:
         if not self.api_key:
             st.error("""
             OANDA API key not found. Please check your Streamlit secrets or environment variables.
-            
-            Add your credentials in TOML format:
-            ```toml
-            [general]
-            OANDA_API_KEY = "your-api-key-here"
-            OANDA_ACCOUNT_ID = "your-account-id-here"
-            ```
             """)
             self.api = None
             return
@@ -56,16 +49,21 @@ class OandaClient:
             st.write("- Account ID:", self.account_id)
             st.write("- API Key length:", len(self.api_key))
             
-            # Initialize API client
+            # Initialize API client with practice account URL
             self.api = oandapyV20.API(
                 access_token=self.api_key,
-                environment="practice"  # Use 'practice' for demo accounts, 'live' for real accounts
+                environment="practice",  # Use 'practice' for demo accounts
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept-Datetime-Format": "RFC3339"
+                }
             )
             self.instrument = "EUR_USD"
             
             # Test connection
             r = accounts.AccountSummary(self.account_id)
-            self.api.request(r)
+            response = self.api.request(r)
+            st.write("API Response:", response)  # Debug response
             st.success("Successfully connected to OANDA API")
             
         except V20Error as e:
@@ -80,13 +78,6 @@ class OandaClient:
             
             Current settings:
             - Account ID: {self.account_id}
-            
-            Make sure you've added these to your Streamlit secrets in TOML format:
-            ```toml
-            [general]
-            OANDA_API_KEY = "your-api-key-here"
-            OANDA_ACCOUNT_ID = "your-account-id-here"
-            ```
             """)
             self.api = None
     
